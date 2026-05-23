@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scanner Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #reader { width: 100%; max-width: 500px; margin: 20px auto; }
+        #result { margin-top: 20px; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>HTML5 QR Code Scanner Test</h1>
+    <p>Testing camera access with html5-qrcode v2.3.8</p>
+    
+    <div id="reader"></div>
+    <div id="result">Scan result will appear here...</div>
+    
+    <button onclick="startScanner()">Start Scanner</button>
+    <button onclick="stopScanner()">Stop Scanner</button>
+    
+    <script src="https://unpkg.com/html5-qrcode@2.3.8"></script>
+    <script>
+        let scanner = null;
+        
+        function startScanner() {
+            if (scanner) return;
+            
+            scanner = new Html5QrcodeScanner("reader", {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                rememberLastUsedCamera: true
+            }, false);
+            
+            scanner.render(
+                (decodedText) => {
+                    document.getElementById("result").innerHTML = `Scanned: ${decodedText}`;
+                },
+                (error) => {
+                    console.log("Scan error:", error);
+                }
+            );
+        }
+        
+        function stopScanner() {
+            if (scanner) {
+                scanner.clear();
+                scanner = null;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+Backend-app/node_modules
+Frontend-app/node_modules
+Backend-app/dist
+Frontend-app/dist

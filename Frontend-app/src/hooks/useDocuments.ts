@@ -48,14 +48,13 @@ export function useUploadDocuments() {
             if (progressEvent.total && onProgress) {
               const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
               // For batch, we'll send progress for all files combined
-              onProgress('Batch upload', progress)
+              onProgress(`Uploading ${files.length} files`, progress)
             }
           },
         })
-        
-        return response.data.results
+        return response.data
       } else {
-        // Single file - use original endpoint for backward compatibility
+        // Single file upload
         const formData = new FormData()
         if (folderId) {
           formData.append('folderId', folderId)
@@ -71,151 +70,21 @@ export function useUploadDocuments() {
             }
           },
         })
-        
-        return [{ success: true, file: files[0].name, data: response.data }]
+        return response.data
       }
     },
-    onSuccess: (results, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['documents', variables.folderId] })
-      queryClient.invalidateQueries({ queryKey: ['folders'] })
-      
-      const successCount = results.filter(r => r.success).length
-      const errorCount = results.length - successCount
-      
-      if (successCount > 0) {
-        addToast({
-          type: 'success',
-          title: successCount === 1 ? 'File uploaded successfully' : `${successCount} files uploaded successfully`,
-          description: successCount === 1 ? `"${results.find(r => r.success)?.file}" has been uploaded.` : 'All files have been processed.',
-        })
-      }
-      
-      if (errorCount > 0) {
-        addToast({
-          type: 'error',
-          title: `${errorCount} file${errorCount > 1 ? 's' : ''} failed to upload`,
-          description: errorCount === 1 ? `"${results.find(r => !r.success)?.file}" failed to upload.` : 'Some files could not be uploaded.',
-        })
-      }
-    },
-    onError: (error, variables) => {
-      addToast({
-        type: 'error',
-        title: 'Upload failed',
-        description: variables.files.length === 1 
-          ? `Failed to upload "${variables.files[0].name}"` 
-          : 'Failed to upload files',
-      })
-    },
-  })
-}
-
-export function useUploadDocument() {
-  const queryClient = useQueryClient()
-  const addToast = useUIStore((state) => state.addToast)
-
-  return useMutation({
-    mutationFn: ({
-      folderId,
-      file,
-      conflict,
-      onProgress,
-    }: {
-      folderId: string | null
-      file: File
-      conflict?: 'replace' | 'duplicate'
-      onProgress?: (progress: number) => void
-    }) => {
-      const formData = new FormData()
-      if (folderId) {
-        formData.append('folderId', folderId)
-      }
-      formData.append('file', file)
-      return documentsApi.uploadDocument(folderId, file, conflict, onProgress)
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ['documents', variables.folderId],
-      })
-      addToast({ message: 'File uploaded successfully', type: 'success' })
-    },
-    onError: () => {
-      addToast({ message: 'Failed to upload file', type: 'error' })
-    },
-  })
-}
-
-export function useSearchDocuments(query: string) {
-  return useQuery({
-    queryKey: ['documents', 'search', query],
-    queryFn: () =>
-      documentsApi.searchDocuments(query).then((res) => res.data),
-    enabled: query.length > 0,
-  })
-}
-
-export function useCheckDuplicate() {
-  return useMutation({
-    mutationFn: ({ folderId, name }: { folderId: string | null; name: string }) =>
-      documentsApi.checkDuplicate(folderId, name).then((res) => res.data),
-  })
-}
-
-export function useDeleteDocument() {
-  const queryClient = useQueryClient()
-  const addToast = useUIStore((state) => state.addToast)
-
-  return useMutation({
-    mutationFn: (id: string) => documentsApi.deleteDocument(id),
-    onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] })
-      queryClient.invalidateQueries({ queryKey: ['folders'] })
-      addToast({ message: 'Document deleted successfully', type: 'success' })
-    },
-    onError: () => {
-      addToast({ message: 'Failed to delete document', type: 'error' })
-    },
-  })
-}
-
-export function useRenameDocument() {
-  const queryClient = useQueryClient()
-  const addToast = useUIStore((state) => state.addToast)
-
-  return useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) =>
-      documentsApi.renameDocument(id, name),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] })
-      queryClient.invalidateQueries({ queryKey: ['folders'] })
-      addToast({ message: 'Document renamed successfully', type: 'success' })
-    },
-    onError: () => {
-      addToast({ message: 'Failed to rename document', type: 'error' })
-    },
-  })
-}
-
-export function useFolders() {
-  return useQuery({
-    queryKey: ['folders'],
-    queryFn: () => documentsApi.getFolders().then((res) => res.data),
-  })
-}
-
-export function useCreateFolder() {
-  const queryClient = useQueryClient()
-  const addToast = useUIStore((state) => state.addToast)
-
-  return useMutation({
-    mutationFn: ({ name, parentId }: { name: string; parentId?: string }) =>
-      documentsApi.createFolder(name, parentId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['folders'] })
-      addToast({ message: 'Folder created successfully', type: 'success' })
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      addToast({
+        message: 'Document(s) uploaded successfully',
+        type: 'success',
+      })
     },
-    onError: () => {
-      addToast({ message: 'Failed to create folder', type: 'error' })
+    onError: (error: any) => {
+      addToast({
+        message: error?.response?.data?.message || 'Failed to upload document(s)',
+        type: 'error',
+      })
     },
   })
 }
@@ -239,6 +108,40 @@ export function useDownloadDocument() {
     onError: (error: any) => {
       addToast({
         message: error?.response?.data?.message || 'Failed to download document',
+        type: 'error',
+      })
+    },
+  })
+}
+
+export function useCheckDocumentExists() {
+  return useMutation({
+    mutationFn: async (data: { folderId: string | null; filename: string }) => {
+      const response = await documentsApi.checkDocumentExists(data.folderId, data.filename)
+      return response.data
+    },
+  })
+}
+
+export function useDeleteDocument() {
+  const queryClient = useQueryClient()
+  const addToast = useUIStore((state) => state.addToast)
+
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await documentsApi.deleteDocument(documentId)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      addToast({
+        message: 'Document deleted successfully',
+        type: 'success',
+      })
+    },
+    onError: (error: any) => {
+      addToast({
+        message: error?.response?.data?.message || 'Failed to delete document',
         type: 'error',
       })
     },

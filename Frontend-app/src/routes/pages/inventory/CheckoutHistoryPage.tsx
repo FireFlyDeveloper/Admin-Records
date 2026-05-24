@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, RotateCcw, XCircle, Package, CheckCircle, AlertCircle, Hourglass, Ban, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, RotateCcw, XCircle, Package, CheckCircle, Hourglass, Ban, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { PageShell } from '@/components/layout/PageShell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useCheckouts, useCheckout, useReturnCheckout, useCancelCheckout, useApproveCheckout, useRejectCheckout } from '@/hooks/useCheckout'
 import { CheckoutStatus, ReturnLine } from '@/types/inventory'
 import { cn } from '@/lib/utils'
+import { mapBackendStatusToFrontend } from '@/lib/statusMapping'
 
 const statusConfig: Record<CheckoutStatus, { label: string; icon: React.ReactNode; color: string }> = {
   pending: { label: 'Pending', icon: <Hourglass className="h-3 w-3" />, color: 'bg-yellow-100 text-yellow-800' },
@@ -19,6 +20,12 @@ const statusConfig: Record<CheckoutStatus, { label: string; icon: React.ReactNod
   returned: { label: 'Returned', icon: <CheckCircle className="h-3 w-3" />, color: 'bg-purple-100 text-purple-800' },
   rejected: { label: 'Rejected', icon: <Ban className="h-3 w-3" />, color: 'bg-red-100 text-red-800' },
   cancelled: { label: 'Cancelled', icon: <XCircle className="h-3 w-3" />, color: 'bg-gray-100 text-gray-800' },
+}
+
+// Helper function to safely get status config
+function getStatusConfig(status: string) {
+  const validStatus = mapBackendStatusToFrontend(status) as CheckoutStatus
+  return statusConfig[validStatus] || statusConfig.pending
 }
 
 interface ParsedNotes {
@@ -47,9 +54,10 @@ function isStudentBorrow(parsedNotes: ParsedNotes | null): boolean {
 
 export function CheckoutHistoryPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
   const isAdminOrStaff = user?.roles?.includes('admin') || user?.roles?.includes('staff')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
   const [selectedCheckoutId, setSelectedCheckoutId] = useState<string | null>(null)
   const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
 
@@ -62,6 +70,15 @@ export function CheckoutHistoryPage() {
   const cancelCheckout = useCancelCheckout()
   const approveCheckout = useApproveCheckout()
   const rejectCheckout = useRejectCheckout()
+
+  // Update URL when filter changes
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (statusFilter) {
+      params.set('status', statusFilter)
+    }
+    setSearchParams(params, { replace: true })
+  }, [statusFilter, setSearchParams])
 
   // Generate request number based on position in the list
   const getRequestNumber = (index: number) => index + 1
@@ -153,7 +170,7 @@ export function CheckoutHistoryPage() {
       ) : checkouts && checkouts.length > 0 ? (
         <div className="space-y-2 sm:space-y-3">
           {checkouts.map((txn, index) => {
-            const status = statusConfig[txn.status];
+            const status = getStatusConfig(txn.status);
             const isSelected = selectedCheckoutId === txn.id
             
             return (

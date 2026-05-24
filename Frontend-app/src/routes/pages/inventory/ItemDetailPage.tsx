@@ -500,7 +500,7 @@ export function ItemDetailPage() {
                   {checkouts.map((txn, index) => (
                     <div key={txn.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-lg border p-3">
                       <div>
-                        <p className="text-sm font-medium">BORROWED #{index + 1}</p>
+                        <p className="text-sm font-medium">Request #{index + 1}</p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(txn.created_at).toLocaleString()}
                         </p>

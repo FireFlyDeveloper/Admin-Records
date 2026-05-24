@@ -32,7 +32,7 @@ import {
   getStoragePath,
   ensureStorageDir,
   searchDocuments,
-} from './documentService'
+} from '../services/documentService'
 import { uploadDocumentsBatch } from '../services/batchDocumentService'
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
 import { PermissionLevel } from '../types';

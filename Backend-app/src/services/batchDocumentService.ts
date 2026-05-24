@@ -2,7 +2,7 @@ import { query, withTransaction } from '../utils/db';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
-import { getStoragePath, ensureStorageDir } from '../utils/storage';
+import { getStoragePath, ensureStorageDir } from './documentService';
 import { Document } from '../types';
 
 export async function uploadDocumentsBatch(
@@ -12,7 +12,7 @@ export async function uploadDocumentsBatch(
   conflict: 'replace' | 'rename' | 'skip' = 'replace'
 ): Promise<{ success: boolean; document: Document | null; error?: string }[]> {
   const batchId = uuidv4();
-  const results = [];
+  const results: Array<{ success: boolean; document: Document | null; error?: string }> = [];
   
   await withTransaction(async (client) => {
     for (const file of files) {

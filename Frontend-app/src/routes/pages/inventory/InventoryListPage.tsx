@@ -127,13 +127,13 @@ export function InventoryListPage() {
       } else {
         // First time adding - check stock is available
         if (lot.quantity_on_hand <= 0) {
-          addToast({ message: `${lot.lot_code} is out of stock`, type: 'warning' })
+          addToast({ message: `${lot.item_name || lot.lot_code} is out of stock`, type: 'warning' })
           return prev // Return unchanged cart
         }
         return [...prev, { lot, quantity: 1 }]
       }
     })
-    addToast({ message: `Added ${lot.lot_code} to cart`, type: 'success' })
+    addToast({ message: `Added ${lot.item_name || lot.lot_code} to cart`, type: 'success' })
   }, [addToast])
 
   const handleUpdateQuantity = useCallback((lotId: string, quantity: number) => {
@@ -141,7 +141,7 @@ export function InventoryListPage() {
       if (c.lot.id === lotId) {
         // Validate quantity doesn't exceed available stock
         if (quantity > c.lot.quantity_on_hand) {
-          addToast({ message: `Cannot request more than ${c.lot.quantity_on_hand} of ${c.lot.lot_code}`, type: 'warning' })
+          addToast({ message: `Cannot request more than ${c.lot.quantity_on_hand} of ${c.lot.item_name || c.lot.lot_code}`, type: 'warning' })
           return c // Return unchanged
         }
         if (quantity < 1) {

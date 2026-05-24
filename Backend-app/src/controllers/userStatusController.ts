@@ -181,7 +181,7 @@ export async function markNotificationRead(req: AuthRequest, res: Response, next
       throw new ValidationError('User not authenticated');
     }
     
-    const notificationId = req.params.id;
+    const notificationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     if (!notificationId) {
       throw new ValidationError('Notification ID is required');
     }
@@ -216,7 +216,7 @@ export async function deleteNotificationEndpoint(req: AuthRequest, res: Response
       throw new ValidationError('User not authenticated');
     }
     
-    const notificationId = req.params.id;
+    const notificationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     if (!notificationId) {
       throw new ValidationError('Notification ID is required');
     }

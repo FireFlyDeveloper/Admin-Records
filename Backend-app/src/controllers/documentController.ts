@@ -200,6 +200,42 @@ export async function uploadDocument(req: AuthRequest, res: Response, next: Next
         throw new ForbiddenError('Editor permission required on folder');
       }
 
+    } else if (!ctx.isAdmin) {
+      throw new ForbiddenError('Only admins can upload to root');
+    }
+
+    ensureStorageDir();
+    const ext = path.extname(file.originalname);
+    const storageName = `${uuidv4()}${ext}`;
+    const destPath = path.join(getStoragePath(), storageName);
+    fs.renameSync(file.path, destPath);
+
+    const document = await createDocument({
+      name: file.originalname,
+      folder_id: folderIdValue,
+      storage_path: storageName,
+      mime_type: file.mimetype,
+      size_bytes: file.size,
+      uploaded_by: ctx.userId,
+      upload_batch_id: null,  // Single file upload, no batch
+    });
+
+    await logActivity({
+      document_id: document.id,
+      actor_id: ctx.userId,
+      action: 'upload',
+      metadata: {
+        folder_id: folderIdValue,
+        size: file.size,
+        mime_type: file.mimetype,
+      },
+    });
+
+    res.status(201).json({ document });
+  } catch (err) {
+    next(err);
+  }
+}
 export async function batchUploadDocuments(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);
@@ -551,7 +587,4 @@ export async function deleteFolderPermission(req: AuthRequest, res: Response, ne
   } catch (err) {
     next(err);
   }
-}
-}
-}
 }

@@ -22,6 +22,7 @@ export function InventoryListPage() {
 
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || '')
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
   const [roomFilter, setRoomFilter] = useState(searchParams.get('room') || '')
   const [expirationFilter, setExpirationFilter] = useState(searchParams.get('expiration') || '')
@@ -33,15 +34,17 @@ export function InventoryListPage() {
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (typeFilter) params.set('type', typeFilter)
+    if (categoryFilter) params.set('category', categoryFilter)
     if (statusFilter) params.set('status', statusFilter)
     if (roomFilter) params.set('room', roomFilter)
     if (expirationFilter) params.set('expiration', expirationFilter)
     setSearchParams(params, { replace: true })
-  }, [search, typeFilter, statusFilter, roomFilter, expirationFilter, setSearchParams])
+  }, [search, typeFilter, categoryFilter, statusFilter, roomFilter, expirationFilter, setSearchParams])
 
   const { data: items, isLoading } = useItems({
     search: search || undefined,
     type: typeFilter || undefined,
+    category: categoryFilter || undefined,
     status: statusFilter || undefined,
     room: roomFilter || undefined,
     expiration: expirationFilter || undefined,
@@ -97,8 +100,8 @@ export function InventoryListPage() {
       }
     >
       {/* Filters - Grid layout */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
-        <div className="relative sm:col-span-2 lg:col-span-2 flex gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-3">
+        <div className="relative sm:col-span-2 lg:col-span-1 flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -135,6 +138,17 @@ export function InventoryListPage() {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
           <option value="maintenance">Maintenance</option>
+        </Select>
+        <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <option value="">All Categories</option>
+          <option value="Electronics">Electronics</option>
+          <option value="Furniture">Furniture</option>
+          <option value="Lab Equipment">Lab Equipment</option>
+          <option value="Office Supplies">Office Supplies</option>
+          <option value="Tools">Tools</option>
+          <option value="Books">Books</option>
+          <option value="Software">Software</option>
+          <option value="Other">Other</option>
         </Select>
         {showExpirationFilter && (
           <Select value={expirationFilter} onChange={(e) => setExpirationFilter(e.target.value)}>

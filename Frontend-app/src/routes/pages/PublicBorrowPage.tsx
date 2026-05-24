@@ -66,7 +66,7 @@ function ItemRow({
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{item.name}</p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-              {item.sku && <span className="font-mono text-primary">{item.sku}</span>}
+              {item.total_stocks !== undefined && <span className="font-medium">Total: {item.total_stocks}</span>}
               {isLoading ? (
                 <span>Loading stock...</span>
               ) : (

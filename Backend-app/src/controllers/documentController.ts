@@ -198,6 +198,49 @@ export async function uploadDocument(req: AuthRequest, res: Response, next: Next
       if (!perm || (perm !== 'editor' && perm !== 'manager' && !ctx.isAdmin)) {
         throw new ForbiddenError('Editor permission required on folder');
       }
+
+export async function batchUploadDocuments(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const ctx = getUserContext(req);
+    const { folder_id, folderId } = req.body;
+    const folderIdValue = folder_id || folderId;
+    const files = (req as any).files;
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      throw new ValidationError('Files are required');
+    }
+
+    const conflict = (req.query.conflict as string) || 'replace';
+
+    if (folderIdValue) {
+      const perm = await resolveFolderPermission(ctx.userId, ctx.userRoles, ctx.isAdmin, folderIdValue as string);
+      if (!perm || (perm !== 'editor' && perm !== 'manager' && !ctx.isAdmin)) {
+        throw new ForbiddenError('Editor permission required on folder');
+      }
+    } else if (!ctx.isAdmin) {
+      throw new ForbiddenError('Only admins can upload to root');
+    }
+
+    const results = await uploadDocumentsBatch(
+      ctx.userId,
+      folderIdValue,
+      files,
+      conflict as 'replace' | 'rename' | 'skip'
+    );
+
+    res.json({
+      success: true,
+      batch_id: results[0]?.document?.upload_batch_id || null,
+      results: results.map(r => ({
+        success: r.success,
+        file: r.document?.name || '',
+        document_id: r.document?.id || null,
+        error: r.error || null,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
     } else if (!ctx.isAdmin) {
       throw new ForbiddenError('Only admins can upload to root');
     }

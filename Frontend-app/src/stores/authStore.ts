@@ -9,6 +9,7 @@ interface AuthState {
   user: User | null
   accessToken: string | null
   refreshToken: string | null
+  sessionToken: string | null
   isAuthenticated: boolean
   isAdmin: boolean
   login: (accessToken: string, refreshToken: string, user: User) => void
@@ -16,6 +17,8 @@ interface AuthState {
   setTokens: (accessToken: string, refreshToken: string) => void
   setUser: (user: User) => void
   scheduleTokenRefresh: () => void
+  generateSessionToken: () => string
+  getSessionToken: () => string
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
@@ -75,14 +78,19 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       refreshToken: null,
+      sessionToken: null,
       isAuthenticated: false,
       isAdmin: false,
 
       login: (accessToken, refreshToken, user) => {
+        // Generate session token for activity tracking
+        const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+        
         set({
           user,
           accessToken,
           refreshToken,
+          sessionToken,
           isAuthenticated: true,
           isAdmin: user.roles.includes('admin'),
         })
@@ -95,6 +103,7 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           accessToken: null,
           refreshToken: null,
+          sessionToken: null,
           isAuthenticated: false,
           isAdmin: false,
         })
@@ -120,6 +129,16 @@ export const useAuthStore = create<AuthState>()(
           setRefreshTimer(accessToken, refreshToken, get().login, get().logout)
         }
       },
+
+      generateSessionToken: () => {
+        const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+        set({ sessionToken });
+        return sessionToken;
+      },
+
+      getSessionToken: () => {
+        return get().sessionToken || '';
+      },
     }),
     {
       name: 'auth-storage',
@@ -127,6 +146,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
+        sessionToken: state.sessionToken,
         isAuthenticated: state.isAuthenticated,
         isAdmin: state.isAdmin,
       }),

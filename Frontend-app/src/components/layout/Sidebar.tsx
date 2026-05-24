@@ -18,6 +18,7 @@ import {
   X,
   Bell,
 } from 'lucide-react'
+import { useSidebarNotificationCounts } from '@/hooks/useNotifications'
 import { useState, useEffect } from 'react'
 import { useDashboardStats } from '@/hooks/useDashboard'
 
@@ -27,7 +28,7 @@ interface NavItem {
   icon: React.ReactNode
   roles: string[]
   children?: NavItem[]
-  badge?: 'pending' | 'missing' | 'expiring'
+  badge?: 'pending' | 'missing' | 'expiring' | 'alert' | 'total'
 }
 
 const navItems: NavItem[] = [
@@ -81,6 +82,13 @@ const navItems: NavItem[] = [
     roles: ['admin'],
   },
   {
+    label: 'Notifications',
+    path: '/notifications',
+    icon: <Bell className="h-5 w-5" />,
+    roles: ['admin', 'staff'],
+    badge: 'total',
+  },
+  {
     label: 'Admin',
     path: '/admin/users',
     icon: <Shield className="h-5 w-5" />,
@@ -106,6 +114,9 @@ export function Sidebar() {
 
   // Fetch dashboard stats for notification counts
   const { data: stats } = useDashboardStats()
+  
+  // Fetch notification counts from new notification system
+  const { counts: notificationCounts, isLoading: countsLoading } = useSidebarNotificationCounts()
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -121,10 +132,11 @@ export function Sidebar() {
     user?.roles.some((r) => item.roles.includes(r))
   )
 
-  // Get notification counts
-  const pendingRequestsCount = stats?.activeCheckoutsCount
-  const missingItemsCount = stats?.missingItemsCount
-  const expiringItemsCount = (stats?.expirationKpis?.expiringSoon ?? 0) + (stats?.expirationKpis?.expiringMonth ?? 0)
+  // Get notification counts - use new notification system first, fallback to dashboard stats
+  const pendingRequestsCount = notificationCounts?.pending_requests ?? stats?.activeCheckoutsCount ?? 0
+  const missingItemsCount = notificationCounts?.missing_items ?? stats?.missingItemsCount ?? 0
+  const expiringItemsCount = notificationCounts?.expiring_items ?? ((stats?.expirationKpis?.expiringSoon ?? 0) + (stats?.expirationKpis?.expiringMonth ?? 0)) ?? 0
+  const totalUnread = notificationCounts?.total_unread ?? 0
 
   const getBadgeCount = (badge: NavItem['badge']) => {
     switch (badge) {
@@ -134,6 +146,10 @@ export function Sidebar() {
         return missingItemsCount
       case 'expiring':
         return expiringItemsCount
+      case 'alert':
+        return notificationCounts?.alerts ?? 0
+      case 'total':
+        return totalUnread
       default:
         return 0
     }
@@ -211,7 +227,9 @@ export function Sidebar() {
                       'min-w-[20px] h-5 rounded-full flex items-center justify-center text-[10px] font-bold px-1.5',
                       item.badge === 'pending' ? 'bg-amber-100 text-amber-800' :
                       item.badge === 'missing' ? 'bg-red-100 text-red-800' :
-                      'bg-orange-100 text-orange-800'
+                      item.badge === 'expiring' ? 'bg-orange-100 text-orange-800' :
+                      item.badge === 'alert' ? 'bg-purple-100 text-purple-800' :
+                      'bg-blue-100 text-blue-800'
                     )}>
                       {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
@@ -263,7 +281,7 @@ export function Sidebar() {
               <Bell className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground">Alerts</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <div className="flex flex-col items-center p-2 rounded-lg bg-amber-50">
                 <span className="text-lg font-bold text-amber-600">{pendingRequestsCount || 0}</span>
                 <span className="text-[10px] text-amber-700">Pending</span>
@@ -275,6 +293,10 @@ export function Sidebar() {
               <div className="flex flex-col items-center p-2 rounded-lg bg-orange-50">
                 <span className="text-lg font-bold text-orange-600">{expiringItemsCount || 0}</span>
                 <span className="text-[10px] text-orange-700">Expiring</span>
+              </div>
+              <div className="flex flex-col items-center p-2 rounded-lg bg-purple-50">
+                <span className="text-lg font-bold text-purple-600">{notificationCounts?.alerts || 0}</span>
+                <span className="text-[10px] text-purple-700">Alerts</span>
               </div>
             </div>
           </div>

@@ -28,6 +28,88 @@ export function useUploadDocuments() {
     }: {
       folderId: string | null
       files: File[]
+      conflict?: 'replace' | 'rename' | 'skip'
+      onProgress?: (filename: string, progress: number) => void
+    }) => {
+      // Use batch endpoint for multiple files
+      if (files.length > 1) {
+        const formData = new FormData()
+        if (folderId) {
+          formData.append('folderId', folderId)
+        }
+        files.forEach((file) => {
+          formData.append('files', file)
+        })
+        
+        const response = await api.post('/documents/upload/batch', formData, {
+          params: conflict ? { conflict } : {},
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total && onProgress) {
+              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              // For batch, we'll send progress for all files combined
+              onProgress('Batch upload', progress)
+            }
+          },
+        })
+        
+        return response.data.results
+      } else {
+        // Single file - use original endpoint for backward compatibility
+        const formData = new FormData()
+        if (folderId) {
+          formData.append('folderId', folderId)
+        }
+        formData.append('file', files[0])
+        
+        const response = await api.post('/documents/upload', formData, {
+          params: conflict ? { conflict } : {},
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total && onProgress) {
+              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              onProgress(files[0].name, progress)
+            }
+          },
+        })
+        
+        return [{ success: true, file: files[0].name, data: response.data }]
+      }
+    },
+    onSuccess: (results, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', variables.folderId] })
+      queryClient.invalidateQueries({ queryKey: ['folders'] })
+      
+      const successCount = results.filter(r => r.success).length
+      const errorCount = results.length - successCount
+      
+      if (successCount > 0) {
+        addToast({
+          type: 'success',
+          title: successCount === 1 ? 'File uploaded successfully' : `${successCount} files uploaded successfully`,
+          description: successCount === 1 ? `"${results.find(r => r.success)?.file}" has been uploaded.` : 'All files have been processed.',
+        })
+      }
+      
+      if (errorCount > 0) {
+        addToast({
+          type: 'error',
+          title: `${errorCount} file${errorCount > 1 ? 's' : ''} failed to upload`,
+          description: errorCount === 1 ? `"${results.find(r => !r.success)?.file}" failed to upload.` : 'Some files could not be uploaded.',
+        })
+      }
+    },
+    onError: (error, variables) => {
+      addToast({
+        type: 'error',
+        title: 'Upload failed',
+        description: variables.files.length === 1 
+          ? `Failed to upload "${variables.files[0].name}"` 
+          : 'Failed to upload files',
+      })
+    },
+  })
+}: {
+      folderId: string | null
+      files: File[]
       conflict?: 'replace' | 'duplicate'
       onProgress?: (filename: string, progress: number) => void
     }) => {

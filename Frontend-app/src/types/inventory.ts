@@ -1,6 +1,6 @@
 export type ItemType = 'trackable' | 'quantifiable'
 export type ItemStatus = 'active' | 'inactive' | 'maintenance'
-export type CheckoutStatus = 'pending_approval' | 'open' | 'partially_returned' | 'closed' | 'cancelled' | 'rejected'
+export type CheckoutStatus = 'pending' | 'approved' | 'borrowed' | 'returned' | 'rejected'
 
 export interface Item {
   id: string
@@ -15,6 +15,7 @@ export interface Item {
   updated_at: string
   deleted_at: string | null
   earliest_expiration?: string | null
+  total_stocks?: number
 }
 
 export interface ItemLot {
@@ -40,6 +41,11 @@ export interface CheckoutTransaction {
   notes: string | null
   created_at: string
   updated_at: string
+  request_number?: number
+  status_changed_at?: string
+  tracking_status?: string
+  admin_notes?: string
+  rejection_reason?: string
 }
 
 export interface CheckoutTransactionItem {

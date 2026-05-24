@@ -1,6 +1,7 @@
 import { Package, Box, AlertTriangle, Clock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Item } from '@/types/inventory'
 import { cn } from '@/lib/utils'
 import { isPast, isBefore, addDays } from 'date-fns'
@@ -57,7 +58,7 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="shrink-0 rounded-lg bg-primary/10 p-2">
               {item.item_type === 'quantifiable' ? (
                 <Box className="h-5 w-5 text-primary" />
@@ -65,12 +66,12 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
                 <Package className="h-5 w-5 text-primary" />
               )}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="font-medium truncate leading-snug">{renderItemName(item.name)}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="capitalize">{item.item_type}</span>
                 {item.category && <span>• {item.category}</span>}
-                {item.sku && <span className="font-mono text-primary">• {item.sku}</span>}
+                {item.total_stocks !== undefined && <span className="font-medium">• {item.total_stocks} in stock</span>}
               </div>
             </div>
           </div>
@@ -78,6 +79,14 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
             <Badge variant="outline" className={cn('shrink-0 text-xs', statusColors[item.status])}>
               {item.status}
             </Badge>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onClick}
+              className="shrink-0 h-6 px-2 text-xs"
+            >
+              View
+            </Button>
           </div>
         </div>
         {item.description && (

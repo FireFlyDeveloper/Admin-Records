@@ -194,8 +194,8 @@ export function ItemDetailPage() {
                   {item.category && (
                     <span className="text-xs text-muted-foreground">{item.category}</span>
                   )}
-                  {item.sku && (
-                    <span className="text-xs font-mono text-primary">SKU: {item.sku}</span>
+                  {item.total_stocks !== undefined && (
+                    <span className="text-xs font-medium">Total Stocks: {item.total_stocks}</span>
                   )}
                 </div>
               </div>

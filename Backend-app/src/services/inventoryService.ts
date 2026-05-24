@@ -58,6 +58,15 @@ export async function listItems(filters: {
   }
 
   let expirationSelect = `(SELECT MIN(expires_at) FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) as earliest_expiration`;
+  let quantitySelect = `
+    CASE 
+      WHEN i.item_type = 'quantifiable' THEN 
+        COALESCE((SELECT SUM(quantity_on_hand) FROM item_lots WHERE item_id = i.id), 0)
+      WHEN i.item_type = 'trackable' THEN
+        COALESCE((SELECT COUNT(*) FROM item_presence_state WHERE item_id = i.id AND status = 'present'), 0)
+      ELSE 0
+    END as total_stocks
+  `;
   
   if (filters.expiration) {
     // Requires quantifiable items that have lots
@@ -74,7 +83,7 @@ export async function listItems(filters: {
   }
 
   const result = await query(
-    `SELECT i.*, ${expirationSelect} FROM items i ${joinClause} WHERE ${conditions.join(' AND ')} ORDER BY i.name`,
+    `SELECT i.*, ${expirationSelect}, ${quantitySelect} FROM items i ${joinClause} WHERE ${conditions.join(' AND ')} ORDER BY i.name`,
     values
   );
   return result.rows;
@@ -82,7 +91,16 @@ export async function listItems(filters: {
 
 export async function getItemById(id: string): Promise<Item> {
   const result = await query(
-    `SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL`,
+    `SELECT i.*, 
+     (SELECT MIN(expires_at) FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) as earliest_expiration,
+     CASE 
+       WHEN i.item_type = 'quantifiable' THEN 
+         COALESCE((SELECT SUM(quantity_on_hand) FROM item_lots WHERE item_id = i.id), 0)
+       WHEN i.item_type = 'trackable' THEN
+         COALESCE((SELECT COUNT(*) FROM item_presence_state WHERE item_id = i.id AND status = 'present'), 0)
+       ELSE 0
+     END as total_stocks
+     FROM items i WHERE id = $1 AND deleted_at IS NULL`,
     [id]
   );
   if (result.rows.length === 0) throw new NotFoundError('Item not found');

@@ -1,3 +1,14 @@
+// --- User Status Types ---
+
+export interface UserOnlineStatus {
+  id: string;
+  email: string;
+  display_name: string;
+  is_active: boolean;
+  status: 'online' | 'offline' | 'inactive';
+  last_seen: Date | null;
+}
+
 // --- User & Role Types ---
 
 export interface User {
@@ -195,6 +206,78 @@ export interface ReturnTransactionItem {
   checkout_item_id: string;
   quantity_returned: number;
   created_at: Date;
+}
+
+// --- Notification Types ---
+
+export type NotificationType = 'pending_request' | 'missing_item' | 'expiring_item' | 'alert' | 'system';
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  message: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  is_read: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: Date;
+  read_at: Date | null;
+}
+
+export interface NotificationCounts {
+  total_unread: number;
+  pending_requests: number;
+  missing_items: number;
+  expiring_items: number;
+  alerts: number;
+  latest_unread: Date | null;
+}
+
+// --- Report Export Types ---
+
+export interface ReportExport {
+  id: string;
+  user_id: string;
+  report_type: 'audit' | 'inventory' | 'checkout' | 'user' | 'custom';
+  file_name: string;
+  file_path: string;
+  format: 'xlsx' | 'csv' | 'json';
+  filters: Record<string, unknown> | null;
+  status: 'processing' | 'completed' | 'failed';
+  error_message: string | null;
+  created_at: Date;
+  completed_at: Date | null;
+  download_count: number;
+}
+
+// --- Scanner Types ---
+
+export interface ScannerSession {
+  id: string;
+  user_id: string | null;
+  session_id: string;
+  scanner_type: 'qr' | 'barcode' | 'camera';
+  focused_field: 'search' | 'scanner' | 'cart';
+  last_scan: string | null;
+  scan_count: number;
+  created_at: Date;
+  last_used: Date;
+  metadata: Record<string, unknown> | null;
+}
+
+// --- Checkout Tracking Types ---
+
+export type TrackingStatus = 'pending' | 'approved' | 'borrowed' | 'returned' | 'rejected' | 'cancelled';
+
+export interface CheckoutTransactionWithTracking extends CheckoutTransaction {
+  tracking_status: TrackingStatus;
+  tracking_notes: string | null;
+  approved_at: Date | null;
+  borrowed_at: Date | null;
+  returned_at: Date | null;
+  rejected_at: Date | null;
 }
 
 // --- API Types ---

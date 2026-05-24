@@ -36,6 +36,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
+import { useRealTimeUserStatus } from '@/hooks/useUserStatus'
 import { ManagedUser, CreateUserInput } from '@/types/auth'
 
 const ROLE_COLORS: Record<string, string> = {
@@ -144,17 +145,7 @@ export function UsersPage() {
     }
   }
 
-  const getStatusIndicator = (user: ManagedUser) => {
-    if (!user.is_active) {
-      return { color: 'bg-orange-500', title: 'User is inactive' }
-    }
-    const hash = user.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0)
-    const isOnline = hash % 3 !== 0
-    return {
-      color: isOnline ? 'bg-green-500' : 'bg-red-500',
-      title: isOnline ? 'User is online' : 'User is offline'
-    }
-  }
+  // Remove simulated status - we'll use real status from hook in the JSX
 
   return (
     <PageShell
@@ -234,9 +225,9 @@ export function UsersPage() {
           ) : (
             <div className="overflow-x-auto -mx-3 sm:-mx-0">
               <div className="min-w-0 space-y-2 px-3 sm:px-0">
-                {users.map((user) => {
-                  const status = getStatusIndicator(user)
-                  return (
+{users.map((user: ManagedUser) => {
+                   const { status: userStatus, icon, label, isLoading } = useRealTimeUserStatus(user.id)
+                   return (
                     <div key={user.id} className="flex items-center justify-between rounded-lg border p-2 sm:p-3 hover:bg-accent/50 transition-colors">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <div className="h-7 w-7 sm:h-9 sm:w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs sm:text-sm font-bold shrink-0">
@@ -259,7 +250,7 @@ export function UsersPage() {
                           ))}
                           {user.roles.length === 0 && <Badge variant="outline" className="text-xs">No roles</Badge>}
                         </div>
-                        <div className={`h-2 w-2 rounded-full shrink-0 ${status.color}`} title={status.title} />
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${isLoading ? 'bg-gray-300' : userStatus === 'online' ? 'bg-green-500' : userStatus === 'offline' ? 'bg-red-500' : 'bg-orange-500'}`} title={isLoading ? 'Loading...' : label} />
                         <Button variant="ghost" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0" onClick={() => openEdit(user)}>
                           <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>

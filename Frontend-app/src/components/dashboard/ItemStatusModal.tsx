@@ -93,7 +93,7 @@ export function ItemStatusModal({ open, onOpenChange, status, title, onViewAll }
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {item.sku && `SKU: ${item.sku}`}
+                      {item.total_stocks !== undefined ? `Total Stocks: ${item.total_stocks}` : ''}
                     </p>
                   </div>
                 </div>

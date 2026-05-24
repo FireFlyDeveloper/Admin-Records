@@ -8,6 +8,7 @@ import {
   getFolderDocuments,
   uploadDocument,
   reuploadDocumentVersion,
+  batchUploadDocuments,
   downloadDocument,
   deleteDocument,
   patchDocument,
@@ -44,6 +45,7 @@ router.delete('/folders/:id/permissions/:pid', deleteFolderPermission);
 router.get('/documents', getAllDocuments);
 router.get('/documents/search', getDocumentSearch);
 router.post('/documents/upload', upload.single('file'), uploadDocument);
+router.post('/documents/upload/batch', upload.array('files', 10), batchUploadDocuments);
 router.get('/documents/check-duplicate', checkDocumentDuplicate);
 router.post('/documents/:id/upload', upload.single('file'), reuploadDocumentVersion);
 router.get('/documents/:id/download', downloadDocument);

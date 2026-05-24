@@ -13,6 +13,7 @@ import auditRoutes from './routes/audit';
 import reportRoutes from './routes/reports';
 import publicRoutes from './routes/public';
 import onlyofficeRoutes from './routes/onlyoffice';
+import userStatusRoutes from './routes/userStatus';
 import { errorHandler } from './middleware/errorHandler';
 import { initMqtt } from './services/mqttService';
 import { initWebSocket } from './services/websocketService';
@@ -58,6 +59,7 @@ app.use('/ble', bleRoutes);
 app.use('/devices', deviceRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/audit-logs', auditRoutes);
+app.use('/user-status', userStatusRoutes);
 app.use('/reports', reportRoutes);
 
 // Route aliases for spec compliance

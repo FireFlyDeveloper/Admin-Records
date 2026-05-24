@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { documentsApi } from '@/api/documents'
+import api from '@/api/client'
 import { useUIStore } from '@/stores/uiStore'
 
 export function useDocuments(folderId: string | null) {
@@ -107,35 +108,6 @@ export function useUploadDocuments() {
       })
     },
   })
-}: {
-      folderId: string | null
-      files: File[]
-      conflict?: 'replace' | 'duplicate'
-      onProgress?: (filename: string, progress: number) => void
-    }) => {
-      const results = []
-      for (const file of files) {
-        try {
-          const result = await documentsApi.uploadDocument(folderId, file, conflict, (progress) => {
-            onProgress?.(file.name, progress)
-          })
-          results.push({ success: true, file: file.name, data: result.data })
-        } catch (error) {
-          results.push({ success: false, file: file.name, error })
-        }
-      }
-      return results
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ['documents', variables.folderId],
-      })
-      addToast({ message: `${variables.files.length} file(s) uploaded successfully`, type: 'success' })
-    },
-    onError: () => {
-      addToast({ message: 'Failed to upload files', type: 'error' })
-    },
-  })
 }
 
 export function useUploadDocument() {
@@ -153,7 +125,14 @@ export function useUploadDocument() {
       file: File
       conflict?: 'replace' | 'duplicate'
       onProgress?: (progress: number) => void
-    }) => documentsApi.uploadDocument(folderId, file, conflict, onProgress).then((res) => res.data),
+    }) => {
+      const formData = new FormData()
+      if (folderId) {
+        formData.append('folderId', folderId)
+      }
+      formData.append('file', file)
+      return documentsApi.uploadDocument(folderId, file, conflict, onProgress)
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: ['documents', variables.folderId],
@@ -166,54 +145,19 @@ export function useUploadDocument() {
   })
 }
 
-export function useDownloadDocument() {
-  const addToast = useUIStore((state) => state.addToast)
+export function useSearchDocuments(query: string) {
+  return useQuery({
+    queryKey: ['documents', 'search', query],
+    queryFn: () =>
+      documentsApi.searchDocuments(query).then((res) => res.data),
+    enabled: query.length > 0,
+  })
+}
 
+export function useCheckDuplicate() {
   return useMutation({
-    mutationFn: async ({ id, filename }: { id: string; filename: string }) => {
-      const response = await documentsApi.downloadDocument(id)
-      const blob = new Blob([response.data])
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-    },
-    onSuccess: () => {
-      addToast({ message: 'Download started', type: 'info' })
-    },
-    onError: () => {
-      addToast({ message: 'Failed to download file', type: 'error' })
-    },
-  })
-}
-
-export function useDocumentVersions(documentId: string | null) {
-  return useQuery({
-    queryKey: ['document-versions', documentId],
-    queryFn: () =>
-      documentsApi.getDocumentVersions(documentId!).then((res) => res.data),
-    enabled: !!documentId,
-  })
-}
-
-export function useDocumentActivity(documentId: string | null) {
-  return useQuery({
-    queryKey: ['document-activity', documentId],
-    queryFn: () =>
-      documentsApi.getDocumentActivity(documentId!).then((res) => res.data),
-    enabled: !!documentId,
-  })
-}
-
-export function useSearchDocuments(q: string) {
-  return useQuery({
-    queryKey: ['documents-search', q],
-    queryFn: () => documentsApi.searchDocuments(q).then((res) => res.data),
-    enabled: q.trim().length > 0,
+    mutationFn: ({ folderId, name }: { folderId: string | null; name: string }) =>
+      documentsApi.checkDuplicate(folderId, name).then((res) => res.data),
   })
 }
 
@@ -223,9 +167,10 @@ export function useDeleteDocument() {
 
   return useMutation({
     mutationFn: (id: string) => documentsApi.deleteDocument(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['documents'] })
-      addToast({ message: 'Document deleted', type: 'success' })
+      queryClient.invalidateQueries({ queryKey: ['folders'] })
+      addToast({ message: 'Document deleted successfully', type: 'success' })
     },
     onError: () => {
       addToast({ message: 'Failed to delete document', type: 'error' })
@@ -239,10 +184,11 @@ export function useRenameDocument() {
 
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) =>
-      documentsApi.renameDocument(id, name).then((res) => res.data),
-    onSuccess: () => {
+      documentsApi.renameDocument(id, name),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['documents'] })
-      addToast({ message: 'Document renamed', type: 'success' })
+      queryClient.invalidateQueries({ queryKey: ['folders'] })
+      addToast({ message: 'Document renamed successfully', type: 'success' })
     },
     onError: () => {
       addToast({ message: 'Failed to rename document', type: 'error' })
@@ -250,9 +196,26 @@ export function useRenameDocument() {
   })
 }
 
-export function useCheckDuplicate() {
+export function useFolders() {
+  return useQuery({
+    queryKey: ['folders'],
+    queryFn: () => documentsApi.getFolders().then((res) => res.data),
+  })
+}
+
+export function useCreateFolder() {
+  const queryClient = useQueryClient()
+  const addToast = useUIStore((state) => state.addToast)
+
   return useMutation({
-    mutationFn: ({ folderId, name }: { folderId: string | null; name: string }) =>
-      documentsApi.checkDuplicate(folderId, name),
+    mutationFn: ({ name, parentId }: { name: string; parentId?: string }) =>
+      documentsApi.createFolder(name, parentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders'] })
+      addToast({ message: 'Folder created successfully', type: 'success' })
+    },
+    onError: () => {
+      addToast({ message: 'Failed to create folder', type: 'error' })
+    },
   })
 }

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { useAuditLogs } from '@/hooks/useAudit'
-import { exportToCSV, exportToJSON } from '@/lib/export'
+import { exportToExcel } from '@/lib/export'
 import { FileDown, Search, RotateCcw } from 'lucide-react'
 
 const entityTypes = ['document', 'item', 'user', 'device', 'checkout', 'folder', 'permission']
@@ -46,30 +46,23 @@ export function AuditLogPage() {
     setPage(1)
   }
 
-  const handleExportCSV = () => {
-    exportToCSV(
+  const handleExportExcel = () => {
+    exportToExcel(
       logs.map((l) => ({
-        id: l.id,
         entityType: l.entityType,
         action: l.action,
         actor: l.actorName,
-        entityId: l.entityId || '',
-        createdAt: l.createdAt,
+        dateTime: new Date(l.createdAt).toLocaleString(),
       })),
-      `audit-logs-${new Date().toISOString().split('T')[0]}.csv`,
+      `audit-logs-${new Date().toISOString().split('T')[0]}.xlsx`,
       {
-        id: 'ID',
         entityType: 'Entity Type',
         action: 'Action',
         actor: 'Actor',
-        entityId: 'Entity ID',
-        createdAt: 'Timestamp',
-      }
+        dateTime: 'Date/Time',
+      },
+      'Audit Logs'
     )
-  }
-
-  const handleExportJSON = () => {
-    exportToJSON(logs, `audit-logs-${new Date().toISOString().split('T')[0]}.json`)
   }
 
   return (
@@ -78,13 +71,9 @@ export function AuditLogPage() {
       description="Track all system activity and changes"
       actions={
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+          <Button variant="outline" size="sm" onClick={handleExportExcel}>
             <FileDown className="h-4 w-4 mr-2" />
-            CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportJSON}>
-            <FileDown className="h-4 w-4 mr-2" />
-            JSON
+            Download Report (.xlsx)
           </Button>
         </div>
       }
@@ -138,8 +127,7 @@ export function AuditLogPage() {
                 <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Entity</th>
                 <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Action</th>
                 <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Actor</th>
-                <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Entity ID</th>
-                <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Timestamp</th>
+                <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Date/Time</th>
               </tr>
             </thead>
             <tbody>
@@ -149,7 +137,6 @@ export function AuditLogPage() {
                     <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-16" /></td>
                     <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-24" /></td>
-                    <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-28" /></td>
                     <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-32" /></td>
                   </tr>
                 ))
@@ -165,9 +152,6 @@ export function AuditLogPage() {
                       <span className="capitalize font-medium">{log.action}</span>
                     </td>
                     <td className="px-2 lg:px-4 py-2 lg:py-3 text-muted-foreground">{log.actorName}</td>
-                    <td className="px-2 lg:px-4 py-2 lg:py-3 text-muted-foreground font-mono text-xs">
-                      {log.entityId ? log.entityId.slice(0, 12) + '...' : '—'}
-                    </td>
                     <td className="px-2 lg:px-4 py-2 lg:py-3 text-muted-foreground text-xs">
                       {new Date(log.createdAt).toLocaleString()}
                     </td>
@@ -175,7 +159,7 @@ export function AuditLogPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-2 lg:px-4 py-8 lg:py-12 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-2 lg:px-4 py-8 lg:py-12 text-center text-muted-foreground">
                     <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>No audit logs found</p>
                   </td>

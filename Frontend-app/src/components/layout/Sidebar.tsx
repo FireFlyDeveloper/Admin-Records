@@ -16,8 +16,10 @@ import {
   BarChart3,
   ScrollText,
   X,
+  Bell,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useDashboardStats } from '@/hooks/useDashboard'
 
 interface NavItem {
   label: string
@@ -25,6 +27,7 @@ interface NavItem {
   icon: React.ReactNode
   roles: string[]
   children?: NavItem[]
+  badge?: 'pending' | 'missing' | 'expiring'
 }
 
 const navItems: NavItem[] = [
@@ -57,6 +60,7 @@ const navItems: NavItem[] = [
     path: '/inventory/checkouts',
     icon: <ClipboardList className="h-5 w-5" />,
     roles: ['admin', 'staff'],
+    badge: 'pending',
   },
   {
     label: 'BLE Tracking',
@@ -100,6 +104,9 @@ export function Sidebar() {
     Admin: isActive('/admin', location.pathname),
   })
 
+  // Fetch dashboard stats for notification counts
+  const { data: stats } = useDashboardStats()
+
   // Close sidebar on route change (mobile)
   useEffect(() => {
     setSidebarOpen(false)
@@ -113,6 +120,24 @@ export function Sidebar() {
   const filteredNav = navItems.filter((item) =>
     user?.roles.some((r) => item.roles.includes(r))
   )
+
+  // Get notification counts
+  const pendingRequestsCount = stats?.activeCheckoutsCount
+  const missingItemsCount = stats?.missingItemsCount
+  const expiringItemsCount = (stats?.expirationKpis?.expiringSoon ?? 0) + (stats?.expirationKpis?.expiringMonth ?? 0)
+
+  const getBadgeCount = (badge: NavItem['badge']) => {
+    switch (badge) {
+      case 'pending':
+        return pendingRequestsCount
+      case 'missing':
+        return missingItemsCount
+      case 'expiring':
+        return expiringItemsCount
+      default:
+        return 0
+    }
+  }
 
   return (
     <>
@@ -156,13 +181,14 @@ export function Sidebar() {
             const children = item.children
             const hasChildren = children && children.length > 0
             const isExpanded = expandedSections[item.label]
+            const badgeCount = getBadgeCount(item.badge)
 
             return (
               <div key={item.path}>
                 <Link
                   to={item.path}
                   className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors relative',
                     active
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
@@ -180,6 +206,16 @@ export function Sidebar() {
                   <span className={cn('flex-1', !sidebarOpen && 'lg:hidden')}>
                     {item.label}
                   </span>
+                  {badgeCount !== undefined && badgeCount > 0 && sidebarOpen && (
+                    <span className={cn(
+                      'min-w-[20px] h-5 rounded-full flex items-center justify-center text-[10px] font-bold px-1.5',
+                      item.badge === 'pending' ? 'bg-amber-100 text-amber-800' :
+                      item.badge === 'missing' ? 'bg-red-100 text-red-800' :
+                      'bg-orange-100 text-orange-800'
+                    )}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  )}
                   {hasChildren && (
                     <ChevronDown
                       className={cn(
@@ -219,6 +255,30 @@ export function Sidebar() {
             )
           })}
         </nav>
+
+        {/* Notification Summary */}
+        {sidebarOpen && (
+          <div className="border-t border-border p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Alerts</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col items-center p-2 rounded-lg bg-amber-50">
+                <span className="text-lg font-bold text-amber-600">{pendingRequestsCount || 0}</span>
+                <span className="text-[10px] text-amber-700">Pending</span>
+              </div>
+              <div className="flex flex-col items-center p-2 rounded-lg bg-red-50">
+                <span className="text-lg font-bold text-red-600">{missingItemsCount || 0}</span>
+                <span className="text-[10px] text-red-700">Missing</span>
+              </div>
+              <div className="flex flex-col items-center p-2 rounded-lg bg-orange-50">
+                <span className="text-lg font-bold text-orange-600">{expiringItemsCount || 0}</span>
+                <span className="text-[10px] text-orange-700">Expiring</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {sidebarOpen && (
           <div className="border-t border-border p-4">

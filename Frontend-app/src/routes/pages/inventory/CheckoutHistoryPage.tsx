@@ -21,6 +21,30 @@ const statusConfig: Record<CheckoutStatus, { label: string; icon: React.ReactNod
   rejected: { label: 'Rejected', icon: <Ban className="h-3 w-3" />, color: 'bg-red-100 text-red-800' },
 }
 
+interface ParsedNotes {
+  name?: string
+  email?: string
+  srcode?: string
+  course?: string
+}
+
+function parseNotes(notes: string | null | undefined): ParsedNotes | null {
+  if (!notes) return null
+  try {
+    const parsed = JSON.parse(notes)
+    if (parsed.name || parsed.email || parsed.srcode || parsed.course) {
+      return parsed
+    }
+  } catch {
+    // Not JSON
+  }
+  return null
+}
+
+function isStudentBorrow(parsedNotes: ParsedNotes | null): boolean {
+  return !!(parsedNotes?.srcode)
+}
+
 export function CheckoutHistoryPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -38,6 +62,9 @@ export function CheckoutHistoryPage() {
   const cancelCheckout = useCancelCheckout()
   const approveCheckout = useApproveCheckout()
   const rejectCheckout = useRejectCheckout()
+
+  // Generate request number based on position in the list
+  const getRequestNumber = (index: number) => index + 1
 
   const handleReturn = (checkoutId: string) => {
     if (!checkoutDetail) return
@@ -65,25 +92,37 @@ export function CheckoutHistoryPage() {
   const canCancel = (status: CheckoutStatus) => status === 'open' || status === 'pending_approval'
   const canApprove = (status: CheckoutStatus) => status === 'pending_approval'
 
-  function renderNotes(notes: string | null | undefined) {
-    if (!notes) return null
-    try {
-      const parsed = JSON.parse(notes)
-      if (parsed.name && parsed.email) {
-        return (
-          <div className="mt-1 text-xs text-muted-foreground space-y-0.5">
-            <p className="font-medium text-foreground/80">Borrower Info</p>
-            <p>Name: {parsed.name}</p>
-            <p>Email: {parsed.email}</p>
-            {parsed.srcode && <p>SR-Code: {parsed.srcode}</p>}
-            {parsed.course && <p>Course: {parsed.course}</p>}
+  function renderBorrowerInfo(notes: string | null | undefined) {
+    const parsedNotes = parseNotes(notes)
+    
+    // Student borrow - show full details
+    if (isStudentBorrow(parsedNotes)) {
+      return (
+        <div className="mt-1 text-xs text-muted-foreground space-y-0.5">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <p><span className="font-medium text-foreground/80">Time Requested:</span> {notes ? new Date(JSON.parse(notes).created_at || Date.now()).toLocaleString() : 'N/A'}</p>
+            <p><span className="font-medium text-foreground/80">Time Returned:</span> {notes ? (JSON.parse(notes).returned_at ? new Date(JSON.parse(notes).returned_at).toLocaleString() : 'N/A') : 'N/A'}</p>
+            <p><span className="font-medium text-foreground/80">Requested By:</span> {parsedNotes?.name || 'N/A'}</p>
+            <p><span className="font-medium text-foreground/80">Email:</span> {parsedNotes?.email || 'N/A'}</p>
+            <p><span className="font-medium text-foreground/80">Item Borrowed:</span> {notes ? (JSON.parse(notes).item_name || 'N/A') : 'N/A'}</p>
+            <p><span className="font-medium text-foreground/80">SR-Code:</span> {parsedNotes?.srcode || 'N/A'}</p>
+            <p><span className="font-medium text-foreground/80">Program:</span> {parsedNotes?.course || 'N/A'}</p>
           </div>
-        )
-      }
-    } catch {
-      // Not JSON — show as plain text
+        </div>
+      )
     }
-    return <p className="text-xs text-muted-foreground mt-1">{notes}</p>
+    
+    // Admin/Staff borrow - show minimal info
+    return (
+      <div className="mt-1 text-xs text-muted-foreground space-y-0.5">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <p><span className="font-medium text-foreground/80">Time Requested:</span> {notes ? (JSON.parse(notes).created_at ? new Date(JSON.parse(notes).created_at).toLocaleString() : new Date().toLocaleString()) : new Date().toLocaleString()}</p>
+          <p><span className="font-medium text-foreground/80">Time Returned:</span> {notes ? (JSON.parse(notes).returned_at ? new Date(JSON.parse(notes).returned_at).toLocaleString() : 'N/A') : 'N/A'}</p>
+          <p><span className="font-medium text-foreground/80">Requested By:</span> {parsedNotes?.name || 'N/A'}</p>
+          <p><span className="font-medium text-foreground/80">Item Borrowed:</span> {notes ? (JSON.parse(notes).item_name || 'N/A') : 'N/A'}</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -113,10 +152,10 @@ export function CheckoutHistoryPage() {
         </div>
       ) : checkouts && checkouts.length > 0 ? (
         <div className="space-y-2 sm:space-y-3">
-          {checkouts.map((txn) => {
+          {checkouts.map((txn, index) => {
             const status = statusConfig[txn.status];
-            console.log("Transaction status:", txn.id, txn.status, "label:", status.label);
             const isSelected = selectedCheckoutId === txn.id
+            
             return (
               <Card
                 key={txn.id}
@@ -131,7 +170,7 @@ export function CheckoutHistoryPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 sm:gap-2">
                         <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Request #{txn.id.slice(0, 8)}</span>
+                        <span className="text-sm font-medium">Request #{getRequestNumber(index)}</span>
                         <Badge variant="outline" className={cn('text-xs flex items-center gap-1', status.color)}>
                           {status.icon}
                           {status.label}
@@ -145,7 +184,7 @@ export function CheckoutHistoryPage() {
                           Requested by: {txn.checked_out_by_name}
                         </p>
                       )}
-                      {renderNotes(txn.notes)}
+                      {renderBorrowerInfo(txn.notes)}
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                       {isAdminOrStaff && canApprove(txn.status) && (
@@ -238,29 +277,6 @@ export function CheckoutHistoryPage() {
                         >
                           Return All
                         </Button>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <Select 
-                          value="" 
-                          onChange={(e) => {
-                            const itemId = e.target.value;
-                            if (itemId) {
-                               const item = checkoutDetail.items.find((i: any) => i.id === itemId);
-                               if (item) {
-                                  setReturnQuantities((prev: any) => ({
-                                      ...prev,
-                                      [item.id]: item.quantity_out - item.quantity_returned
-                                  }))
-                               }
-                            }
-                          }}
-                        >
-                           <option value="">Select specific item...</option>
-                           {checkoutDetail.items.filter((i: any) => i.quantity_out > i.quantity_returned).map((item: any) => (
-                             <option key={item.id} value={item.id}>{item.item_name} ({item.lot_code})</option>
-                           ))}
-                        </Select>
                       </div>
 
                       {checkoutDetail.items.map((item) => {

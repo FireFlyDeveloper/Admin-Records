@@ -242,10 +242,6 @@ export async function batchUploadDocuments(req: AuthRequest, res: Response, next
     next(err);
   }
 }
-export async function batchUploadDocuments(req: AuthRequest, res: Response, next: NextFunction) {
- * GET /documents/check-duplicate?folder_id=X&name=filename.docx
- * Returns { exists: true, document: { id, name, size_bytes, updated_at } } or { exists: false }
- */
 export async function checkDocumentDuplicate(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);
@@ -555,4 +551,7 @@ export async function deleteFolderPermission(req: AuthRequest, res: Response, ne
   } catch (err) {
     next(err);
   }
+}
+}
+}
 }

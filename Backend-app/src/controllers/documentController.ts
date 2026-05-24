@@ -32,7 +32,8 @@ import {
   getStoragePath,
   ensureStorageDir,
   searchDocuments,
-} from '../services/documentService';
+} from './documentService'
+import { uploadDocumentsBatch } from '../services/batchDocumentService'
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
 import { PermissionLevel } from '../types';
 
@@ -241,64 +242,7 @@ export async function batchUploadDocuments(req: AuthRequest, res: Response, next
     next(err);
   }
 }
-    } else if (!ctx.isAdmin) {
-      throw new ForbiddenError('Only admins can upload to root');
-    }
-
-    ensureStorageDir();
-    const ext = path.extname(file.originalname);
-    const storageName = `${uuidv4()}${ext}`;
-    const destPath = path.join(getStoragePath(), storageName);
-    fs.renameSync(file.path, destPath);
-
-    const docName = name || file.originalname;
-    const existingDoc = await findDocumentByFolderAndName(folderIdValue || null, docName);
-
-    let finalName = docName;
-
-    if (existingDoc) {
-      if (conflict === 'replace') {
-        // Replace-by-name: soft-delete old document so the new file replaces it
-        await softDeleteDocument(existingDoc.id);
-        await logActivity({
-          document_id: existingDoc.id,
-          actor_id: ctx.userId,
-          action: 'replaced_by_upload',
-          metadata: { replaced_by_name: docName },
-        });
-      } else if (conflict === 'duplicate') {
-        // Generate a unique name with (1), (2), etc.
-        finalName = await getUniqueDocumentName(folderIdValue || null, docName);
-      }
-      // conflict=prompt: frontend checks via check-duplicate endpoint before uploading,
-      // so no server-side action is needed here; proceed with original docName
-    }
-
-    const doc = await createDocument({
-      folder_id: folderIdValue || null,
-      name: finalName,
-      mime_type: file.mimetype,
-      size_bytes: file.size,
-      storage_path: storageName,
-      uploaded_by: ctx.userId,
-    });
-
-    await createDocumentVersion({
-      document_id: doc.id,
-      version: 1,
-      storage_path: storageName,
-      size_bytes: file.size,
-      uploaded_by: ctx.userId,
-    });
-
-    await logActivity({ document_id: doc.id, actor_id: ctx.userId, action: 'upload', metadata: { size: file.size, mime_type: file.mimetype } });
-    res.status(201).json({ document: doc });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
+export async function batchUploadDocuments(req: AuthRequest, res: Response, next: NextFunction) {
  * GET /documents/check-duplicate?folder_id=X&name=filename.docx
  * Returns { exists: true, document: { id, name, size_bytes, updated_at } } or { exists: false }
  */

@@ -20,7 +20,7 @@ export function DashboardPage() {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
   const { data: stats, isLoading: statsLoading } = useDashboardStats()
-  const { data: activity, isLoading: activityLoading } = useRecentActivity(20)
+  const { data: activity, isLoading: activityLoading } = useRecentActivity(10)
   const { data: rooms, isLoading: roomsLoading } = useRoomStatus()
 
   // Modal state for item status views

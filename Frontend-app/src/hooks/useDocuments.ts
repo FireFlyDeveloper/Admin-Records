@@ -219,3 +219,28 @@ export function useCreateFolder() {
     },
   })
 }
+
+export function useDocumentActivity(documentId: string) {
+  return useQuery({
+    queryKey: ['document-activity', documentId],
+    queryFn: () => documentsApi.getDocumentActivity(documentId).then((res) => res.data),
+    enabled: !!documentId,
+  })
+}
+
+export function useDownloadDocument() {
+  const addToast = useUIStore((state) => state.addToast)
+  
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await documentsApi.downloadDocument(documentId)
+      return response.data
+    },
+    onError: (error: any) => {
+      addToast({
+        message: error?.response?.data?.message || 'Failed to download document',
+        type: 'error',
+      })
+    },
+  })
+}

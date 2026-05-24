@@ -84,17 +84,18 @@ export interface Folder {
 }
 
 export interface Document {
-  id: string;
-  folder_id: string | null;
-  name: string;
-  mime_type: string;
-  size_bytes: number;
-  storage_path: string;
-  version: number;
-  uploaded_by: string;
-  created_at: Date;
-  updated_at: Date;
-  deleted_at: Date | null;
+  id: string
+  folder_id: string | null
+  name: string
+  mime_type: string
+  size_bytes: number
+  storage_path: string
+  version: number
+  uploaded_by: string
+  upload_batch_id: string | null
+  created_at: Date
+  updated_at: Date
+  deleted_at: Date | null
 }
 
 export interface DocumentVersion {
@@ -166,6 +167,7 @@ export interface ItemLot {
   notes: string | null;
   created_at: Date;
   updated_at: Date;
+  item_name?: string; // Added for frontend display
 }
 
 export type CheckoutStatus = 'pending_approval' | 'open' | 'partially_returned' | 'closed' | 'cancelled' | 'rejected';

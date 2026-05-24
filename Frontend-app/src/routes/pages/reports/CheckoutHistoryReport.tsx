@@ -10,16 +10,20 @@ import { FileDown, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const statusColors: Record<string, string> = {
-  open: 'bg-green-100 text-green-800',
-  partially_returned: 'bg-amber-100 text-amber-800',
-  closed: 'bg-green-100 text-green-800',
+  pending: 'bg-yellow-100 text-yellow-800',
+  approved: 'bg-green-100 text-green-800',
+  borrowed: 'bg-blue-100 text-blue-800',
+  returned: 'bg-purple-100 text-purple-800',
+  rejected: 'bg-red-100 text-red-800',
   cancelled: 'bg-gray-100 text-gray-800',
 }
 
 const statusLabels: Record<string, string> = {
-  open: 'approved',
-  partially_returned: 'partially returned',
-  closed: 'closed',
+  pending: 'pending',
+  approved: 'approved',
+  borrowed: 'borrowed',
+  returned: 'returned',
+  rejected: 'rejected',
   cancelled: 'cancelled',
 }
 

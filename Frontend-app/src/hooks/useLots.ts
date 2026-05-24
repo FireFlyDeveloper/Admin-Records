@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryApi } from '@/api/inventory'
 import { useUIStore } from '@/stores/uiStore'
-import { CreateLotInput } from '@/types/inventory'
+import { CreateLotInput, UpdateLotInput } from '@/types/inventory'
 
 export function useLots(itemId: string | null) {
   return useQuery({
@@ -27,6 +27,24 @@ export function useCreateLot() {
     },
     onError: (err: any) => {
       addToast({ message: err?.response?.data?.error || 'Failed to create lot', type: 'error' })
+    },
+  })
+}
+
+export function useUpdateLot() {
+  const queryClient = useQueryClient()
+  const addToast = useUIStore((state) => state.addToast)
+
+  return useMutation({
+    mutationFn: ({ lotId, data }: { lotId: string; data: UpdateLotInput }) =>
+      inventoryApi.updateLot(lotId, data).then((res) => res.data.lot),
+    onSuccess: (lot) => {
+      // Invalidate the lots query for the item
+      queryClient.invalidateQueries({ queryKey: ['lots'] })
+      addToast({ message: 'Lot updated successfully', type: 'success' })
+    },
+    onError: (err: any) => {
+      addToast({ message: err?.response?.data?.error || 'Failed to update lot', type: 'error' })
     },
   })
 }

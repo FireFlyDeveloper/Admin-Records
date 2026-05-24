@@ -1,4 +1,4 @@
-import { Package, Box, AlertTriangle, Clock } from 'lucide-react'
+import { Package, Box, AlertTriangle, Clock, Eye } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -80,12 +80,19 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
               {item.status}
             </Badge>
             <Button
+              type="button"
               size="sm"
-              variant="ghost"
-              onClick={onClick}
-              className="shrink-0 h-6 px-2 text-xs"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent card click from also triggering
+                onClick?.();
+              }}
+              disabled={!onClick}
+              className="shrink-0 h-7 px-3 text-xs hover:bg-accent hover:text-accent-foreground"
+              aria-label={`View details for ${item.name}`}
             >
-              View
+              <Eye className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+              View Details
             </Button>
           </div>
         </div>

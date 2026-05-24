@@ -9,6 +9,7 @@ import {
   CreateItemInput,
   UpdateItemInput,
   CreateLotInput,
+  UpdateLotInput,
   CheckoutInput,
   ReturnInput,
   CheckoutTransaction,
@@ -34,6 +35,9 @@ export const inventoryApi = {
 
   createLot: (itemId: string, data: CreateLotInput) =>
     api.post<{ lot: ItemLot }>(`/items/${itemId}/lots`, data),
+
+  updateLot: (lotId: string, data: UpdateLotInput) =>
+    api.patch<{ lot: ItemLot }>(`/lots/${lotId}`, data),
 
   // Checkout
   getCheckouts: (params?: { status?: string; user_id?: string; item_id?: string }) =>

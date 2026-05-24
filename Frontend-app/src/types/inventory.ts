@@ -1,6 +1,6 @@
 export type ItemType = 'trackable' | 'quantifiable'
 export type ItemStatus = 'active' | 'inactive' | 'maintenance'
-export type CheckoutStatus = 'pending' | 'approved' | 'borrowed' | 'returned' | 'rejected'
+export type CheckoutStatus = 'pending' | 'approved' | 'borrowed' | 'returned' | 'rejected' | 'cancelled'
 
 export interface Item {
   id: string
@@ -30,6 +30,7 @@ export interface ItemLot {
   notes: string | null
   created_at: string
   updated_at: string
+  item_name?: string
 }
 
 export interface CheckoutTransaction {
@@ -128,6 +129,14 @@ export interface UpdateItemInput {
 export interface CreateLotInput {
   lot_code: string
   quantity_total: number
+  purchased_at?: string
+  expires_at?: string
+  notes?: string
+}
+
+export interface UpdateLotInput {
+  lot_code?: string
+  quantity_total?: number
   purchased_at?: string
   expires_at?: string
   notes?: string

@@ -23,6 +23,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { inventoryApi } from '@/api/inventory'
 import { useUIStore } from '@/stores/uiStore'
 import { ItemLot, Item } from '@/types/inventory'
+import { selectMostAppropriateLots } from '@/lib/lotSelection'
 
 // ── Sub-components ─────────────────────────────────────────────────
 
@@ -248,7 +249,7 @@ function MobileCartDrawer({
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {c.lot.lot_code}
+                      {c.lot.item_name || c.lot.lot_code}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Qty: {c.quantity}
@@ -317,7 +318,7 @@ function DesktopCartSidebar({
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {c.lot.lot_code}
+                      {c.lot.item_name || c.lot.lot_code}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Qty: {c.quantity}
@@ -419,39 +420,35 @@ export function PublicBorrowPage() {
     staleTime: 60 * 1000,
   })
 
-  const addToCart = useCallback(
+const addToCart = useCallback(
     (item: Item, lots: ItemLot[], qty: number) => {
       const available = lots.filter((l) => l.quantity_on_hand > 0)
       if (available.length === 0) return
 
-      // Distribute qty across available lots
-      let remaining = qty
-      const additions: { lot: ItemLot; quantity: number }[] = []
-
-      for (const lot of available) {
-        if (remaining <= 0) break
-        const take = Math.min(remaining, lot.quantity_on_hand)
-        additions.push({ lot, quantity: take })
-        remaining -= take
-      }
-
-      if (remaining > 0) {
-        addToast({ message: `Only ${qty - remaining} of ${qty} available for ${item.name}`, type: 'warning' })
+      // Use intelligent lot selection (FIFO by default - expiring soonest first)
+      const selections = selectMostAppropriateLots(qty, available)
+      
+      // Calculate how much we actually added
+      const addedQuantity = selections.reduce((sum, sel) => sum + sel.quantity, 0)
+      
+      if (addedQuantity < qty) {
+        addToast({ message: `Only ${addedQuantity} of ${qty} available for ${item.name}`, type: 'warning' })
+      } else if (addedQuantity > 0) {
+        addToast({ message: `Added ${addedQuantity} of ${item.name} to cart`, type: 'success' })
       }
 
       setCart((prev) => {
         const next = [...prev]
-        for (const add of additions) {
-          const index = next.findIndex((c) => c.lot.id === add.lot.id)
+        for (const sel of selections) {
+          const index = next.findIndex((c) => c.lot.id === sel.lot.id)
           if (index >= 0) {
-            next[index] = { ...next[index], quantity: next[index].quantity + add.quantity }
+            next[index] = { ...next[index], quantity: next[index].quantity + sel.quantity }
           } else {
-            next.push(add)
+            next.push(sel)
           }
         }
         return next
       })
-      addToast({ message: `Added ${item.name} (×${qty})`, type: 'success' })
     },
     [addToast]
   )
@@ -740,7 +737,7 @@ export function PublicBorrowPage() {
                   className="flex items-center justify-between rounded-lg border p-2.5 sm:p-3"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{c.lot.lot_code}</p>
+                    <p className="text-sm font-medium truncate">{c.lot.item_name || c.lot.lot_code}</p>
                     <p className="text-xs text-muted-foreground">
                       Qty: {c.quantity}
                     </p>

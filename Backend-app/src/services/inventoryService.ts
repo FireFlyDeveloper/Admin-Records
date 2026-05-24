@@ -63,7 +63,7 @@ export async function listItems(filters: {
       WHEN i.item_type = 'quantifiable' THEN 
         COALESCE((SELECT SUM(quantity_on_hand) FROM item_lots WHERE item_id = i.id), 0)
       WHEN i.item_type = 'trackable' THEN
-        COALESCE((SELECT COUNT(*) FROM item_presence_state WHERE item_id = i.id AND status = 'present'), 0)
+        COALESCE((SELECT COUNT(*) FROM item_presence_state WHERE item_id = i.id AND presence_status = 'present'), 0)
       ELSE 0
     END as total_stocks
   `;
@@ -97,7 +97,7 @@ export async function getItemById(id: string): Promise<Item> {
        WHEN i.item_type = 'quantifiable' THEN 
          COALESCE((SELECT SUM(quantity_on_hand) FROM item_lots WHERE item_id = i.id), 0)
        WHEN i.item_type = 'trackable' THEN
-         COALESCE((SELECT COUNT(*) FROM item_presence_state WHERE item_id = i.id AND status = 'present'), 0)
+         COALESCE((SELECT COUNT(*) FROM item_presence_state WHERE item_id = i.id AND presence_status = 'present'), 0)
        ELSE 0
      END as total_stocks
      FROM items i WHERE id = $1 AND deleted_at IS NULL`,
@@ -192,14 +192,24 @@ export async function softDeleteItem(id: string): Promise<void> {
 
 export async function listLotsByItem(itemId: string): Promise<ItemLot[]> {
   const result = await query(
-    `SELECT * FROM item_lots WHERE item_id = $1 ORDER BY created_at DESC`,
+    `SELECT il.*, i.name as item_name 
+     FROM item_lots il
+     JOIN items i ON i.id = il.item_id
+     WHERE il.item_id = $1 
+     ORDER BY il.created_at DESC`,
     [itemId]
   );
   return result.rows;
 }
 
 export async function getLotById(id: string): Promise<ItemLot> {
-  const result = await query(`SELECT * FROM item_lots WHERE id = $1`, [id]);
+  const result = await query(
+    `SELECT il.*, i.name as item_name 
+     FROM item_lots il
+     JOIN items i ON i.id = il.item_id
+     WHERE il.id = $1`,
+    [id]
+  );
   if (result.rows.length === 0) throw new NotFoundError('Lot not found');
   return result.rows[0];
 }

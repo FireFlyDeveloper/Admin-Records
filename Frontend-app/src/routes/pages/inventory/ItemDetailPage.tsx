@@ -25,7 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/stores/authStore'
 import { useItem, useUpdateItem, useDeleteItem } from '@/hooks/useItems'
-import { useLots, useCreateLot } from '@/hooks/useLots'
+import { useLots, useCreateLot, useUpdateLot } from '@/hooks/useLots'
 import {
   usePresenceDetail,
   useBleTags,
@@ -33,7 +33,7 @@ import {
   useUnassignBleTag,
 } from '@/hooks/useBLE'
 import { useCheckouts, useCreateCheckout } from '@/hooks/useCheckout'
-import { UpdateItemInput, CreateLotInput, CheckoutLine } from '@/types/inventory'
+import { UpdateItemInput, CreateLotInput, UpdateLotInput, CheckoutLine } from '@/types/inventory'
 import { cn } from '@/lib/utils'
 
 const statusColors: Record<string, string> = {
@@ -58,6 +58,7 @@ export function ItemDetailPage() {
 
   const [showEditForm, setShowEditForm] = useState(false)
   const [showLotForm, setShowLotForm] = useState(false)
+  const [editingLot, setEditingLot] = useState<{ id: string; data: any } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [checkoutLotId, setCheckoutLotId] = useState('')
   const [checkoutQty, setCheckoutQty] = useState('1')
@@ -82,6 +83,7 @@ export function ItemDetailPage() {
   const updateItem = useUpdateItem()
   const deleteItem = useDeleteItem()
   const createLot = useCreateLot()
+  const updateLot = useUpdateLot()
 
   const handleUpdate = (data: UpdateItemInput) => {
     if (!id) return
@@ -103,9 +105,19 @@ export function ItemDetailPage() {
     unassignTag.mutate(assignedTag.id)
   }
 
-  const handleCreateLot = (data: CreateLotInput) => {
+  const handleCreateLot = (data: CreateLotInput | UpdateLotInput) => {
     if (!id) return
-    createLot.mutate({ itemId: id, data }, { onSuccess: () => setShowLotForm(false) })
+    createLot.mutate({ itemId: id, data: data as CreateLotInput }, { onSuccess: () => setShowLotForm(false) })
+  }
+
+  const handleUpdateLot = (data: UpdateLotInput) => {
+    if (!editingLot) return
+    updateLot.mutate({ lotId: editingLot.id, data }, { 
+      onSuccess: () => {
+        setEditingLot(null)
+        setShowLotForm(false)
+      }
+    })
   }
 
   const handleCheckout = () => {
@@ -370,14 +382,32 @@ export function ItemDetailPage() {
                 <div className="space-y-2">
                   {lots.map((lot) => (
                     <div key={lot.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-lg border p-3">
-                      <div>
-                        <p className="text-sm font-medium">{lot.lot_code}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">{lot.item_name || lot.lot_code}</p>
+                          {isAdminOrStaff && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => {
+                                setEditingLot({ id: lot.id, data: lot })
+                                setShowLotForm(true)
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
                         {(lot.purchased_at || lot.expires_at) && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground mt-1">
                             {lot.purchased_at && `Purchased: ${new Date(lot.purchased_at).toLocaleDateString()}`}
                             {lot.purchased_at && lot.expires_at && ' · '}
                             {lot.expires_at && `Expires: ${new Date(lot.expires_at).toLocaleDateString()}`}
                           </p>
+                        )}
+                        {lot.notes && (
+                          <p className="text-xs text-muted-foreground mt-1">{lot.notes}</p>
                         )}
                       </div>
                       <div className="text-right">
@@ -424,7 +454,7 @@ export function ItemDetailPage() {
                       <option value="" disabled>Select a lot...</option>
                       {lots.map((lot) => (
                         <option key={lot.id} value={lot.id}>
-                          {lot.lot_code} (On Hand: {lot.quantity_on_hand})
+                          {lot.item_name || lot.lot_code} (On Hand: {lot.quantity_on_hand})
                         </option>
                       ))}
                     </select>
@@ -467,10 +497,10 @@ export function ItemDetailPage() {
                 </div>
               ) : checkouts && checkouts.length > 0 ? (
                 <div className="space-y-2">
-                  {checkouts.map((txn) => (
+                  {checkouts.map((txn, index) => (
                     <div key={txn.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-lg border p-3">
                       <div>
-                        <p className="text-sm font-medium">Checkout #{txn.id.slice(0, 8)}</p>
+                        <p className="text-sm font-medium">BORROWED #{index + 1}</p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(txn.created_at).toLocaleString()}
                         </p>
@@ -512,9 +542,14 @@ export function ItemDetailPage() {
       {/* Lot Form */}
       <LotForm
         open={showLotForm}
-        onOpenChange={setShowLotForm}
-        onSubmit={handleCreateLot}
-        isLoading={createLot.isPending}
+        onOpenChange={(open) => {
+          setShowLotForm(open)
+          if (!open) setEditingLot(null)
+        }}
+        onSubmit={editingLot ? handleUpdateLot : handleCreateLot}
+        isLoading={editingLot ? updateLot.isPending : createLot.isPending}
+        lot={lots?.find(l => l.id === editingLot?.id)}
+        mode={editingLot ? 'edit' : 'create'}
       />
 
       {/* Delete Confirmation */}

@@ -2,12 +2,26 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryApi } from '@/api/inventory'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
-import { CheckoutInput, ReturnInput } from '@/types/inventory'
+import { CheckoutInput, ReturnInput, CheckoutTransaction } from '@/types/inventory'
+import { mapBackendStatusToFrontend, mapFrontendStatusToBackend } from '@/lib/statusMapping'
 
 export function useCheckouts(filters?: { status?: string; user_id?: string; item_id?: string }) {
+  // Map frontend status filter to backend status
+  const backendFilters = filters ? {
+    ...filters,
+    status: filters.status ? mapFrontendStatusToBackend(filters.status as any) : undefined
+  } : filters
+
   return useQuery({
     queryKey: ['checkouts', filters],
-    queryFn: () => inventoryApi.getCheckouts(filters).then((res) => res.data.transactions),
+    queryFn: () => inventoryApi.getCheckouts(backendFilters).then((res) => {
+      // Map backend statuses to frontend statuses
+      const transactions = res.data.transactions.map((txn: any) => ({
+        ...txn,
+        status: mapBackendStatusToFrontend(txn.status)
+      }))
+      return transactions
+    }),
     staleTime: 60 * 1000,
     refetchInterval: 30 * 1000,
   })
@@ -16,7 +30,17 @@ export function useCheckouts(filters?: { status?: string; user_id?: string; item
 export function useCheckout(id: string | null) {
   return useQuery({
     queryKey: ['checkout', id],
-    queryFn: () => inventoryApi.getCheckout(id!).then((res) => res.data),
+    queryFn: () => inventoryApi.getCheckout(id!).then((res) => {
+      // Map backend status to frontend status
+      const data = {
+        ...res.data,
+        transaction: {
+          ...res.data.transaction,
+          status: mapBackendStatusToFrontend(res.data.transaction.status)
+        }
+      }
+      return data
+    }),
     enabled: !!id,
     staleTime: 60 * 1000,
     refetchInterval: 30 * 1000,

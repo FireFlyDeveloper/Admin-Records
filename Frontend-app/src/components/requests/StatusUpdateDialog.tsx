@@ -65,6 +65,13 @@ const STATUS_OPTIONS: Array<{
     icon: <XCircle className="h-4 w-4" />,
     color: 'bg-red-100 text-red-800 border-red-200',
   },
+  {
+    value: 'cancelled',
+    label: 'Cancelled',
+    description: 'Request was cancelled',
+    icon: <XCircle className="h-4 w-4" />,
+    color: 'bg-gray-100 text-gray-800 border-gray-200',
+  },
 ];
 
 export function StatusUpdateDialog({

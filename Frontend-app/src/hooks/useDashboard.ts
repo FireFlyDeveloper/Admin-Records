@@ -10,7 +10,7 @@ export function useDashboardStats() {
   })
 }
 
-export function useRecentActivity(limit = 20) {
+export function useRecentActivity(limit = 10) {
   return useQuery({
     queryKey: ['recent-activity', limit],
     queryFn: () => dashboardApi.getRecentActivity({ limit }).then((res) => res.data),

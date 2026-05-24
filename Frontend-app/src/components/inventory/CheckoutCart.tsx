@@ -45,7 +45,7 @@ export function CheckoutCart({ items, onUpdateQuantity, onRemove, onCheckout, is
         {items.map((cartItem) => (
           <div key={cartItem.lot.id} className="flex items-center gap-3 rounded-lg border p-3">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{cartItem.lot.lot_code}</p>
+              <p className="text-sm font-medium truncate">{cartItem.lot.item_name || cartItem.lot.lot_code}</p>
               <p className="text-xs text-muted-foreground">
                 Available: {cartItem.lot.quantity_on_hand}
               </p>

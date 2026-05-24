@@ -14,6 +14,8 @@ import { useItems } from '@/hooks/useItems'
 import { useLots } from '@/hooks/useLots'
 import { useUIStore } from '@/stores/uiStore'
 import { ItemLot, Item } from '@/types/inventory'
+import { selectMostAppropriateLots } from '@/lib/lotSelection'
+import { inventoryApi } from '@/api/inventory'
 
 function LotRow({
   lot,
@@ -25,7 +27,7 @@ function LotRow({
   return (
     <div className="flex items-center justify-between rounded-md border p-2 text-sm">
       <div className="min-w-0">
-        <p className="font-medium truncate">{lot.lot_code}</p>
+        <p className="font-medium truncate">{lot.item_name || lot.lot_code}</p>
         <p className="text-xs text-muted-foreground">
           On hand: {lot.quantity_on_hand} | Out: {lot.quantity_out}
         </p>
@@ -47,22 +49,31 @@ function LotRow({
 function ItemWithLots({
   item,
   onAddLot,
+  onQuickAdd,
 }: {
   item: Item
   onAddLot: (lot: ItemLot) => void
+  onQuickAdd?: (item: Item, lots: ItemLot[]) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const { data: lots, isLoading } = useLots(expanded ? item.id : null)
 
   const availableLots = lots?.filter((l) => l.quantity_on_hand > 0) ?? []
+  const hasAvailableLots = availableLots.length > 0
+
+  const handleQuickAdd = () => {
+    if (onQuickAdd && lots) {
+      onQuickAdd(item, lots)
+    }
+  }
 
   return (
     <div className="rounded-lg border">
-      <button
-        className="flex items-center justify-between w-full p-3 text-left hover:bg-accent/50 transition-colors"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center justify-between w-full p-3">
+        <button
+          className="flex items-center gap-3 min-w-0 flex-1 text-left hover:bg-accent/50 transition-colors p-2 -m-2 rounded-md"
+          onClick={() => setExpanded((v) => !v)}
+        >
           <Package className="h-4 w-4 text-muted-foreground shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{item.name}</p>
@@ -73,11 +84,26 @@ function ItemWithLots({
               <p className="text-xs text-muted-foreground truncate">{item.description}</p>
             )}
           </div>
+        </button>
+        
+        <div className="flex items-center gap-2 shrink-0">
+          {onQuickAdd && hasAvailableLots && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 shrink-0 min-h-9 lg:min-h-7"
+              onClick={handleQuickAdd}
+              title="Quick add (uses FIFO lot selection)"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Quick Add
+            </Button>
+          )}
+          <div className="w-8 flex justify-center">
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </div>
         </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
       </div>
-      </button>
 
       {expanded && (
         <div className="px-3 pb-3 space-y-2">
@@ -130,7 +156,51 @@ export function CheckoutPage() {
         }
         return [...prev, { lot, quantity: 1 }]
       })
-      addToast({ message: `Added ${lot.lot_code}`, type: 'success' })
+      addToast({ message: `Added ${lot.item_name || lot.lot_code}`, type: 'success' })
+    },
+    [addToast]
+  )
+
+const quickAddItem = useCallback(
+    (item: Item, lots: ItemLot[], quantity = 1) => {
+      const availableLots = lots.filter(l => l.quantity_on_hand > 0)
+      if (availableLots.length === 0) {
+        addToast({ message: `No available lots for ${item.name}`, type: 'warning' })
+        return
+      }
+
+      // Use intelligent lot selection (FIFO - expiring soonest first)
+      const selections = selectMostAppropriateLots(quantity, availableLots)
+      
+      if (selections.length === 0) {
+        addToast({ message: `Unable to add ${quantity} of ${item.name}`, type: 'warning' })
+        return
+      }
+
+      // Calculate total added
+      const totalAdded = selections.reduce((sum, sel) => sum + sel.quantity, 0)
+      
+      setCart((prev) => {
+        const next = [...prev]
+        for (const selection of selections) {
+          const existing = next.find((c) => c.lot.id === selection.lot.id)
+          if (existing) {
+            const newQuantity = existing.quantity + selection.quantity
+            if (newQuantity > selection.lot.quantity_on_hand) {
+              addToast({ message: `Cannot exceed available stock for ${selection.lot.item_name || selection.lot.lot_code}`, type: 'warning' })
+              continue
+            }
+            existing.quantity = newQuantity
+          } else {
+            next.push(selection)
+          }
+        }
+        return next
+      })
+
+      if (totalAdded > 0) {
+        addToast({ message: `Added ${totalAdded} of ${item.name}`, type: 'success' })
+      }
     },
     [addToast]
   )
@@ -138,7 +208,7 @@ export function CheckoutPage() {
   const handleScan = useCallback(
     (code: string) => {
       scanCode.mutate(code, {
-        onSuccess: (result) => {
+        onSuccess: async (result) => {
           if (result.type === 'lot' && result.lot) {
             const lot = result.lot as ItemLot
             if (lot.quantity_on_hand <= 0) {
@@ -147,10 +217,45 @@ export function CheckoutPage() {
             }
             addLotToCart(lot)
           } else if (result.type === 'item' && result.item) {
-            addToast({
-              message: `Scanned item: ${result.item.name}. Please scan a lot code or select from list.`,
-              type: 'info',
-            })
+            // When an item is scanned, fetch its lots and automatically select the best one
+            try {
+              const lotsResponse = await inventoryApi.getLots(result.item.id)
+              const lots = lotsResponse.data.lots
+              const availableLots = lots.filter(l => l.quantity_on_hand > 0)
+              
+              if (availableLots.length === 0) {
+                addToast({ 
+                  message: `Item "${result.item.name}" has no available lots`, 
+                  type: 'warning' 
+                })
+                return
+              }
+              
+              // Use intelligent lot selection (FIFO - expiring soonest first)
+              const selections = selectMostAppropriateLots(1, availableLots)
+              
+              if (selections.length === 0) {
+                addToast({ 
+                  message: `Could not add "${result.item.name}" - no suitable lots found`, 
+                  type: 'warning' 
+                })
+                return
+              }
+              
+              // Add the selected lot to cart
+              const selectedLot = selections[0].lot
+              addLotToCart(selectedLot)
+              
+              addToast({ 
+                message: `Added "${result.item.name}" using lot ${selectedLot.lot_code} (intelligent selection)`, 
+                type: 'success' 
+              })
+            } catch (error) {
+              addToast({ 
+                message: `Failed to fetch lots for "${result.item.name}"`, 
+                type: 'error' 
+              })
+            }
           }
         },
       })
@@ -232,7 +337,7 @@ export function CheckoutPage() {
               ) : items && items.length > 0 ? (
                 <div className="space-y-2 max-h-[50vh] md:max-h-[500px] overflow-y-auto pr-1">
                   {items.map((item) => (
-                    <ItemWithLots key={item.id} item={item} onAddLot={addLotToCart} />
+                    <ItemWithLots key={item.id} item={item} onAddLot={addLotToCart} onQuickAdd={quickAddItem} />
                   ))}
                 </div>
               ) : (
@@ -252,7 +357,7 @@ export function CheckoutPage() {
                   {cart.map((c) => (
                     <div key={c.lot.id} className="flex items-center justify-between rounded-lg border p-3">
                       <div>
-                        <p className="text-sm font-medium">{c.lot.lot_code}</p>
+                        <p className="text-sm font-medium">{c.lot.item_name || c.lot.lot_code}</p>
                         <p className="text-xs text-muted-foreground">Qty: {c.quantity}</p>
                       </div>
                     </div>

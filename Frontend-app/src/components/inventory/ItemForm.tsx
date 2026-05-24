@@ -60,8 +60,8 @@ export function ItemForm({ open, onOpenChange, onSubmit, item, isLoading }: Item
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Item name" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="sku">SKU</Label>
-            <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="e.g. SKU-12345" />
+            <Label htmlFor="sku">Total Stocks</Label>
+            <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="e.g. TS-100" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="category">Category</Label>

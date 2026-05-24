@@ -13,12 +13,12 @@ import { CheckoutStatus, ReturnLine } from '@/types/inventory'
 import { cn } from '@/lib/utils'
 
 const statusConfig: Record<CheckoutStatus, { label: string; icon: React.ReactNode; color: string }> = {
-  pending_approval: { label: 'Pending Approval', icon: <Hourglass className="h-3 w-3" />, color: 'bg-yellow-100 text-yellow-800' },
-  open: { label: 'Approved', icon: <CheckCircle className="h-3 w-3" />, color: 'bg-green-100 text-green-800' },
-  partially_returned: { label: 'Partially Returned', icon: <AlertCircle className="h-3 w-3" />, color: 'bg-amber-100 text-amber-800' },
-  closed: { label: 'Closed', icon: <CheckCircle className="h-3 w-3" />, color: 'bg-green-100 text-green-800' },
-  cancelled: { label: 'Cancelled', icon: <XCircle className="h-3 w-3" />, color: 'bg-gray-100 text-gray-800' },
+  pending: { label: 'Pending', icon: <Hourglass className="h-3 w-3" />, color: 'bg-yellow-100 text-yellow-800' },
+  approved: { label: 'Approved', icon: <CheckCircle className="h-3 w-3" />, color: 'bg-green-100 text-green-800' },
+  borrowed: { label: 'Borrowed', icon: <Package className="h-3 w-3" />, color: 'bg-blue-100 text-blue-800' },
+  returned: { label: 'Returned', icon: <CheckCircle className="h-3 w-3" />, color: 'bg-purple-100 text-purple-800' },
   rejected: { label: 'Rejected', icon: <Ban className="h-3 w-3" />, color: 'bg-red-100 text-red-800' },
+  cancelled: { label: 'Cancelled', icon: <XCircle className="h-3 w-3" />, color: 'bg-gray-100 text-gray-800' },
 }
 
 interface ParsedNotes {
@@ -88,9 +88,9 @@ export function CheckoutHistoryPage() {
     })
   }
 
-  const canReturn = (status: CheckoutStatus) => status === 'open' || status === 'partially_returned'
-  const canCancel = (status: CheckoutStatus) => status === 'open' || status === 'pending_approval'
-  const canApprove = (status: CheckoutStatus) => status === 'pending_approval'
+  const canReturn = (status: CheckoutStatus) => status === 'approved' || status === 'borrowed'
+  const canCancel = (status: CheckoutStatus) => status === 'approved' || status === 'pending'
+  const canApprove = (status: CheckoutStatus) => status === 'pending'
 
   function renderBorrowerInfo(notes: string | null | undefined) {
     const parsedNotes = parseNotes(notes)
@@ -135,12 +135,12 @@ export function CheckoutHistoryPage() {
       <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-4">
         <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">All Status</option>
-          <option value="pending_approval">Pending Approval</option>
-          <option value="open">Approved</option>
-          <option value="partially_returned">Partially Returned</option>
-          <option value="closed">Closed</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="borrowed">Borrowed</option>
+          <option value="returned">Returned</option>
           <option value="rejected">Rejected</option>
+          <option value="cancelled">Cancelled</option>
         </Select>
       </div>
 
@@ -225,7 +225,7 @@ export function CheckoutHistoryPage() {
                           Return
                         </Button>
                       )}
-                      {/* Students can cancel their own pending requests; admin/staff can cancel any open/pending */}
+                      {/* Students can cancel their own pending requests; admin/staff can cancel any approved/pending */}
                       {(canCancel(txn.status) && (!isAdminOrStaff ? txn.checked_out_by === user?.id : true)) && (
                         <Button
                           variant="ghost"

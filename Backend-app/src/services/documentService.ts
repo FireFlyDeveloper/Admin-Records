@@ -239,19 +239,20 @@ export async function findDocumentByFolderAndName(folderId: string | null, name:
 }
 
 export async function createDocument(data: {
-  folder_id?: string | null;
-  name: string;
-  mime_type: string;
-  size_bytes: number;
-  storage_path: string;
-  uploaded_by: string;
+  folder_id?: string | null
+  name: string
+  mime_type: string
+  size_bytes: number
+  storage_path: string
+  uploaded_by: string
+  upload_batch_id?: string | null
 }): Promise<Document> {
   const existing = await query(
     `SELECT id, deleted_at FROM documents WHERE storage_path = $1`,
     [data.storage_path]
-  );
+  )
   if (existing.rows.length > 0) {
-    const row = existing.rows[0];
+    const row = existing.rows[0]
     if (row.deleted_at) {
       const result = await query(
         `UPDATE documents
@@ -260,23 +261,24 @@ export async function createDocument(data: {
              name = $2,
              mime_type = $3,
              size_bytes = $4,
-             uploaded_by = $5
-         WHERE id = $6
+             uploaded_by = $5,
+             upload_batch_id = $6
+         WHERE id = $7
          RETURNING *`,
-        [data.folder_id || null, data.name, data.mime_type, data.size_bytes, data.uploaded_by, row.id]
-      );
-      return result.rows[0];
+        [data.folder_id || null, data.name, data.mime_type, data.size_bytes, data.uploaded_by, data.upload_batch_id || null, row.id]
+      )
+      return result.rows[0]
     }
-    throw new ConflictError('Document with this storage path already exists');
+    throw new ConflictError('Document with this storage path already exists')
   }
 
   const result = await query(
-    `INSERT INTO documents (folder_id, name, mime_type, size_bytes, storage_path, uploaded_by)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO documents (folder_id, name, mime_type, size_bytes, storage_path, uploaded_by, upload_batch_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [data.folder_id || null, data.name, data.mime_type, data.size_bytes, data.storage_path, data.uploaded_by]
-  );
-  return result.rows[0];
+    [data.folder_id || null, data.name, data.mime_type, data.size_bytes, data.storage_path, data.uploaded_by, data.upload_batch_id || null]
+  )
+  return result.rows[0]
 }
 
 export async function updateDocumentVersion(

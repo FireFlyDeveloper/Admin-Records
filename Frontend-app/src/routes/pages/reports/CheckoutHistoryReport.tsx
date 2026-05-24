@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { useCheckoutHistoryReport } from '@/hooks/useReports'
-import { exportToCSV, exportToJSON } from '@/lib/export'
+import { exportToExcel } from '@/lib/export'
 import { FileDown, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -34,34 +34,28 @@ export function CheckoutHistoryReport() {
 
   const { data, isLoading } = useCheckoutHistoryReport(filters)
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!data) return
-    exportToCSV(
-      data.map((d) => ({
-        id: d.id,
+    exportToExcel(
+      data.map((d, index) => ({
+        requestNumber: `Request #${index + 1}`,
         checkedOutBy: d.checkedOutBy,
         processedBy: d.processedBy || '',
         status: statusLabels[d.status] || d.status,
         itemCount: d.itemCount,
-        notes: d.notes || '',
-        createdAt: d.createdAt,
+        dateTime: new Date(d.createdAt).toLocaleString(),
       })),
-      `checkout-history-${new Date().toISOString().split('T')[0]}.csv`,
+      `checkout-history-${new Date().toISOString().split('T')[0]}.xlsx`,
       {
-        id: 'ID',
+        requestNumber: 'Request #',
         checkedOutBy: 'Checked Out By',
         processedBy: 'Processed By',
         status: 'Status',
         itemCount: 'Items',
-        notes: 'Notes',
-        createdAt: 'Date',
-      }
+        dateTime: 'Date/Time',
+      },
+      'Checkout History'
     )
-  }
-
-  const handleExportJSON = () => {
-    if (!data) return
-    exportToJSON(data, `checkout-history-${new Date().toISOString().split('T')[0]}.json`)
   }
 
   return (
@@ -78,13 +72,9 @@ export function CheckoutHistoryReport() {
               <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9 sm:h-10 text-xs sm:text-sm" />
             </div>
             <div className="flex items-center gap-2 sm:ml-auto">
-              <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
+              <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
                 <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportJSON} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
-                <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                JSON
+                Download Report (.xlsx)
               </Button>
             </div>
           </div>
@@ -93,17 +83,17 @@ export function CheckoutHistoryReport() {
 
       <Card>
         <CardHeader className="p-3 sm:p-4">
-          <CardTitle className="text-sm sm:text-base">Checkout Transactions</CardTitle>
+          <CardTitle className="text-sm sm:text-base">Requests</CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="text-left px-2 sm:px-4 py-2 sm:py-3 font-medium">ID</th>
+                <th className="text-left px-2 sm:px-4 py-2 sm:py-3 font-medium">Request #</th>
                 <th className="text-left px-2 sm:px-4 py-2 sm:py-3 font-medium">User</th>
                 <th className="text-left px-2 sm:px-4 py-2 sm:py-3 font-medium">Status</th>
                 <th className="text-left px-2 sm:px-4 py-2 sm:py-3 font-medium">Items</th>
-                <th className="text-left px-2 sm:px-4 py-2 sm:py-3 font-medium">Date</th>
+                <th className="text-left px-2 sm:px-4 py-2 sm:py-3 font-medium">Date/Time</th>
               </tr>
             </thead>
             <tbody>
@@ -118,9 +108,9 @@ export function CheckoutHistoryReport() {
                   </tr>
                 ))
               ) : data && data.length > 0 ? (
-                data.map((row) => (
+                data.map((row, index) => (
                   <tr key={row.id} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-mono text-[10px] sm:text-xs whitespace-nowrap">{row.id.slice(0, 8)}...</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium whitespace-nowrap">Request #{index + 1}</td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{row.checkedOutBy}</td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">
                       <Badge variant="outline" className={cn('text-[10px] sm:text-xs capitalize px-1.5 py-0 sm:px-2 sm:py-0.5', statusColors[row.status] || '')}>

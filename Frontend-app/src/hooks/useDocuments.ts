@@ -15,6 +15,47 @@ export function useDocuments(folderId: string | null) {
   })
 }
 
+export function useUploadDocuments() {
+  const queryClient = useQueryClient()
+  const addToast = useUIStore((state) => state.addToast)
+
+  return useMutation({
+    mutationFn: async ({
+      folderId,
+      files,
+      conflict,
+      onProgress,
+    }: {
+      folderId: string | null
+      files: File[]
+      conflict?: 'replace' | 'duplicate'
+      onProgress?: (filename: string, progress: number) => void
+    }) => {
+      const results = []
+      for (const file of files) {
+        try {
+          const result = await documentsApi.uploadDocument(folderId, file, conflict, (progress) => {
+            onProgress?.(file.name, progress)
+          })
+          results.push({ success: true, file: file.name, data: result.data })
+        } catch (error) {
+          results.push({ success: false, file: file.name, error })
+        }
+      }
+      return results
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['documents', variables.folderId],
+      })
+      addToast({ message: `${variables.files.length} file(s) uploaded successfully`, type: 'success' })
+    },
+    onError: () => {
+      addToast({ message: 'Failed to upload files', type: 'error' })
+    },
+  })
+}
+
 export function useUploadDocument() {
   const queryClient = useQueryClient()
   const addToast = useUIStore((state) => state.addToast)

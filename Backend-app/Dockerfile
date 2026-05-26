@@ -7,12 +7,12 @@ COPY package.json package-lock.json* ./
 RUN npm ci && npm cache clean --force
 
 # Copy source + build
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.build.json ./
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY migrations/ ./migrations/
 
-RUN npx tsc
+RUN npx tsc -p tsconfig.build.json
 
 # Storage
 RUN mkdir -p /app/storage

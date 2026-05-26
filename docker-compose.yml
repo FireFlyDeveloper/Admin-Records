@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./Backend-app
+      dockerfile: Dockerfile
+    image: backend-app:latest
+    container_name: admin-records-backend
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=/app/storage/admin_records.db
+    volumes:
+      - backend-storage:/app/storage
+      - ./Backend-app/.env.production:/app/.env.production:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./Frontend-app
+      dockerfile: Dockerfile
+    image: frontend-app:latest
+    container_name: admin-records-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-storage:
+    driver: local

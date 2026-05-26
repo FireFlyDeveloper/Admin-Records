@@ -2,12 +2,14 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { query } from '../utils/db';
 import { ForbiddenError, ValidationError } from '../utils/errors';
+import ExcelJS from 'exceljs';
 
 function getUserContext(req: AuthRequest) {
   const user = req.user;
   if (!user) throw new ForbiddenError();
   const isAdmin = user.roles.includes('admin');
-  return { userId: user.id, isAdmin };
+  const isStaff = user.roles.includes('staff');
+  return { userId: user.id, isAdmin, isStaff };
 }
 
 function parseDateRange(req: AuthRequest): { dateFrom?: string; dateTo?: string } {
@@ -19,9 +21,9 @@ function parseDateRange(req: AuthRequest): { dateFrom?: string; dateTo?: string 
   };
 }
 
-function formatExport(data: any[], format: string): { body: string; contentType: string } {
+async function formatExport(data: any[], format: string): Promise<{ body: Buffer | string; contentType: string; filename: string }> {
   if (format === 'csv') {
-    if (data.length === 0) return { body: '', contentType: 'text/csv' };
+    if (data.length === 0) return { body: '', contentType: 'text/csv', filename: 'report.csv' };
     const headers = Object.keys(data[0]);
     const rows = data.map((row) =>
       headers
@@ -37,9 +39,60 @@ function formatExport(data: any[], format: string): { body: string; contentType:
         .join(',')
     );
     const body = [headers.join(','), ...rows].join('\n');
-    return { body, contentType: 'text/csv' };
+    return { body, contentType: 'text/csv', filename: 'report.csv' };
   }
-  return { body: JSON.stringify(data, null, 2), contentType: 'application/json' };
+  
+  if (format === 'xlsx') {
+    if (data.length === 0) {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Report');
+      worksheet.addRow(['No data available']);
+      const buffer = await workbook.xlsx.writeBuffer();
+      return { body: Buffer.from(buffer), contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: 'report.xlsx' };
+    }
+    
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Report');
+    
+    // Add headers
+    const headers = Object.keys(data[0]);
+    worksheet.addRow(headers);
+    
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+    
+    // Add data rows
+    data.forEach(row => {
+      const rowData = headers.map(header => {
+        const value = row[header];
+        // Handle null/undefined
+        if (value === null || value === undefined) return '';
+        // Handle dates
+        if (value instanceof Date) return value;
+        if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+          return new Date(value);
+        }
+        // Handle objects
+        if (typeof value === 'object') return JSON.stringify(value);
+        return value;
+      });
+      worksheet.addRow(rowData);
+    });
+    
+    // Auto-fit columns
+    worksheet.columns = headers.map(() => ({ width: 20 }));
+    
+    const buffer = await workbook.xlsx.writeBuffer();
+    return { body: Buffer.from(buffer), contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: 'report.xlsx' };
+  }
+  
+  return { body: JSON.stringify(data, null, 2), contentType: 'application/json', filename: 'report.json' };
 }
 
 // --- Inventory Movement Report ---
@@ -51,7 +104,7 @@ export async function getInventoryMovementReport(req: AuthRequest, res: Response
 
     const { dateFrom, dateTo } = parseDateRange(req);
     const format = (req.query.format as string) || 'json';
-    if (!['json', 'csv'].includes(format)) throw new ValidationError('format must be json or csv');
+    if (!['json', 'csv', 'xlsx'].includes(format)) throw new ValidationError('format must be json, csv, or xlsx');
 
     const conditions: string[] = [];
     const values: any[] = [];
@@ -101,7 +154,7 @@ export async function getInventoryMovementReport(req: AuthRequest, res: Response
       values
     );
 
-    if (format === 'csv') {
+    if (format === 'csv' || format === 'xlsx') {
       const flat = result.rows.map((r) => ({
         id: r.id,
         checked_out_by: r.checked_out_by,
@@ -112,9 +165,9 @@ export async function getInventoryMovementReport(req: AuthRequest, res: Response
         updated_at: r.updated_at,
         items: JSON.stringify(r.items),
       }));
-      const { body, contentType } = formatExport(flat, 'csv');
+      const { body, contentType, filename } = await formatExport(flat, format);
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', 'attachment; filename="inventory-movement.csv"');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('report', 'inventory-movement')}"`);
       return res.send(body);
     }
 
@@ -136,15 +189,20 @@ export async function getInventoryMovementReport(req: AuthRequest, res: Response
 export async function getCheckoutHistoryReport(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);
-    if (!ctx.isAdmin) throw new ForbiddenError('Admin access required');
-
+    
     const { dateFrom, dateTo } = parseDateRange(req);
     const format = (req.query.format as string) || 'json';
-    if (!['json', 'csv'].includes(format)) throw new ValidationError('format must be json or csv');
+    if (!['json', 'csv', 'xlsx'].includes(format)) throw new ValidationError('format must be json, csv, or xlsx');
 
     const conditions: string[] = [];
     const values: any[] = [];
     let idx = 1;
+
+    // Students can only see their own checkouts
+    if (!ctx.isAdmin && !ctx.isStaff) {
+      conditions.push(`ct.checked_out_by = $${idx++}`);
+      values.push(ctx.userId);
+    }
 
     if (dateFrom) {
       conditions.push(`ct.created_at >= $${idx++}`);
@@ -165,6 +223,7 @@ export async function getCheckoutHistoryReport(req: AuthRequest, res: Response, 
         ct.status,
         ct.notes,
         ct.created_at as checkout_date,
+        ct.request_number,
         cti.id as checkout_item_id,
         cti.item_id,
         i.name as item_name,
@@ -190,15 +249,44 @@ export async function getCheckoutHistoryReport(req: AuthRequest, res: Response, 
       values
     );
 
-    if (format === 'csv') {
-      const { body, contentType } = formatExport(result.rows, 'csv');
+    // Apply role-based response formatting
+    let rows = result.rows;
+    if (!ctx.isAdmin && !ctx.isStaff) {
+      rows = rows.map(row => {
+        const sanitizedRow = { ...row };
+        if (sanitizedRow.notes) {
+          try {
+            const notesJson = JSON.parse(sanitizedRow.notes);
+            // Only keep fields students should see
+            const sanitizedNotes = {
+              created_at: notesJson.created_at || null,
+              returned_at: notesJson.returned_at || null,
+              item_name: notesJson.item_name || null,
+              status: notesJson.status || null
+            };
+            sanitizedRow.notes = JSON.stringify(sanitizedNotes);
+          } catch {
+            // If notes is not valid JSON, keep as-is
+          }
+        }
+        // Also remove sensitive user info for students viewing others' data
+        // (though they should only see their own due to the WHERE clause above)
+        if (sanitizedRow.checked_out_by !== ctx.userId) {
+          sanitizedRow.checked_out_by_name = null;
+        }
+        return sanitizedRow;
+      });
+    }
+
+    if (format === 'csv' || format === 'xlsx') {
+      const { body, contentType, filename } = await formatExport(rows, format);
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', 'attachment; filename="checkout-history.csv"');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('report', 'checkout-history')}"`);
       return res.send(body);
     }
 
     // Map to frontend expected shape
-    const data = result.rows.map((r) => ({
+    const data = rows.map((r) => ({
       id: r.transaction_id,
       checkedOutBy: r.checked_out_by_name || r.checked_out_by,
       processedBy: r.returned_by_name || null,
@@ -224,7 +312,7 @@ export async function getMissingHistoryReport(req: AuthRequest, res: Response, n
 
     const { dateFrom, dateTo } = parseDateRange(req);
     const format = (req.query.format as string) || 'json';
-    if (!['json', 'csv'].includes(format)) throw new ValidationError('format must be json or csv');
+    if (!['json', 'csv', 'xlsx'].includes(format)) throw new ValidationError('format must be json, csv, or xlsx');
 
     const conditions: string[] = [`presence_status = 'missing'`];
     const values: any[] = [];
@@ -262,10 +350,10 @@ export async function getMissingHistoryReport(req: AuthRequest, res: Response, n
       values
     );
 
-    if (format === 'csv') {
-      const { body, contentType } = formatExport(result.rows, 'csv');
+    if (format === 'csv' || format === 'xlsx') {
+      const { body, contentType, filename } = await formatExport(result.rows, format);
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', 'attachment; filename="missing-history.csv"');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('report', 'missing-history')}"`);
       return res.send(body);
     }
 
@@ -295,7 +383,7 @@ export async function getDeviceHealthReport(req: AuthRequest, res: Response, nex
 
     const { dateFrom, dateTo } = parseDateRange(req);
     const format = (req.query.format as string) || 'json';
-    if (!['json', 'csv'].includes(format)) throw new ValidationError('format must be json or csv');
+    if (!['json', 'csv', 'xlsx'].includes(format)) throw new ValidationError('format must be json, csv, or xlsx');
 
     const conditions: string[] = [];
     const values: any[] = [];
@@ -340,10 +428,10 @@ export async function getDeviceHealthReport(req: AuthRequest, res: Response, nex
       values
     );
 
-    if (format === 'csv') {
-      const { body, contentType } = formatExport(result.rows, 'csv');
+    if (format === 'csv' || format === 'xlsx') {
+      const { body, contentType, filename } = await formatExport(result.rows, format);
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', 'attachment; filename="device-health.csv"');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('report', 'device-health')}"`);
       return res.send(body);
     }
 

@@ -226,7 +226,7 @@ export function UsersPage() {
             <div className="overflow-x-auto -mx-3 sm:-mx-0">
               <div className="min-w-0 space-y-2 px-3 sm:px-0">
 {users.map((user: ManagedUser) => {
-                   const { status: userStatus, icon, label, isLoading } = useRealTimeUserStatus(user.id)
+                   const { status: userStatus, label, isLoading } = useRealTimeUserStatus(user.id)
                    return (
                     <div key={user.id} className="flex items-center justify-between rounded-lg border p-2 sm:p-3 hover:bg-accent/50 transition-colors">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">

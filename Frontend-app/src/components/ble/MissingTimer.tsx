@@ -18,18 +18,24 @@ interface MissingTimerProps {
 }
 
 export function MissingTimer({ missingSince, className }: MissingTimerProps) {
-  const [, setTick] = useState(0)
+  const [elapsed, setElapsed] = useState<number>(0)
 
   useEffect(() => {
     if (!missingSince) return
-    const interval = setInterval(() => setTick((t) => t + 1), 1000)
+
+    const updateElapsed = () => {
+      const diff = Date.now() - new Date(missingSince).getTime()
+      if (diff >= 0) {
+        setElapsed(diff)
+      }
+    }
+
+    updateElapsed()
+    const interval = setInterval(updateElapsed, 1000)
     return () => clearInterval(interval)
   }, [missingSince])
 
-  if (!missingSince) return null
-
-  const elapsed = Date.now() - new Date(missingSince).getTime()
-  if (elapsed < 0) return null
+  if (!missingSince || elapsed < 0) return null
 
   return (
     <span className={className}>

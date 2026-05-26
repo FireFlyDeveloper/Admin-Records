@@ -42,7 +42,7 @@ export function CheckoutHistoryReport() {
     if (!data) return
     exportToExcel(
       data.map((d, index) => ({
-        requestNumber: `Request #${index + 1}`,
+        requestNumber: `Request #${d.requestNumber || index + 1}`,
         checkedOutBy: d.checkedOutBy,
         processedBy: d.processedBy || '',
         status: statusLabels[d.status] || d.status,
@@ -114,7 +114,7 @@ export function CheckoutHistoryReport() {
               ) : data && data.length > 0 ? (
                 data.map((row, index) => (
                   <tr key={row.id} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium whitespace-nowrap">Request #{index + 1}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium whitespace-nowrap">Request #{row.requestNumber || index + 1}</td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{row.checkedOutBy}</td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">
                       <Badge variant="outline" className={cn('text-[10px] sm:text-xs capitalize px-1.5 py-0 sm:px-2 sm:py-0.5', statusColors[row.status] || '')}>

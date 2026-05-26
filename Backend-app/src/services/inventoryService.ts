@@ -320,10 +320,10 @@ export async function createCheckout(
   return withTransaction(async (client) => {
     // Create transaction
     const txnResult = await client.query(
-      `INSERT INTO checkout_transactions (checked_out_by, status, notes)
-       VALUES ($1, $2, $3)
+      `INSERT INTO checkout_transactions (checked_out_by, status, notes, tracking_status)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [checkedOutBy, status, notes || null]
+      [checkedOutBy, status, notes || null, status === 'open' ? 'approved' : 'pending']
     );
     const transaction: CheckoutTransaction = txnResult.rows[0];
 
@@ -460,7 +460,8 @@ export async function approveCheckout(
 
     const updated = await client.query(
       `UPDATE checkout_transactions
-       SET status = 'open', processed_by = $1, updated_at = now()
+       SET status = 'open', processed_by = $1, updated_at = now(),
+           tracking_status = 'approved', approved_at = now()
        WHERE id = $2
        RETURNING *`,
       [approvedBy, checkoutId]
@@ -487,13 +488,14 @@ export async function rejectCheckout(
     throw new ConflictError('Only pending checkouts can be rejected');
   }
 
-  const updated = await query(
-    `UPDATE checkout_transactions
-     SET status = 'rejected', processed_by = $1, updated_at = now()
-     WHERE id = $2
-     RETURNING *`,
-    [rejectedBy, checkoutId]
-  );
+const updated = await query(
+      `UPDATE checkout_transactions
+       SET status = 'rejected', processed_by = $1, updated_at = now(),
+           tracking_status = 'rejected', rejected_at = now()
+       WHERE id = $2
+       RETURNING *`,
+      [rejectedBy, checkoutId]
+    );
 
   return updated.rows[0];
 }

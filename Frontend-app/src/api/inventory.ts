@@ -33,6 +33,8 @@ export const inventoryApi = {
   // Lots
   getLots: (itemId: string) => api.get<{ lots: ItemLot[] }>(`/items/${itemId}/lots`),
 
+  getLot: (lotId: string) => api.get<{ lot: ItemLot }>(`/lots/${lotId}`),
+
   createLot: (itemId: string, data: CreateLotInput) =>
     api.post<{ lot: ItemLot }>(`/items/${itemId}/lots`, data),
 
@@ -61,6 +63,7 @@ export const inventoryApi = {
 
   // Scan
   scanCode: (code: string) => api.post<ScanResult>('/checkout/scan', { code }),
+  scanInventory: (code: string) => api.post<ScanResult>('/scan', { code }),
 
   // Public endpoints (no auth required)
   getPublicItems: (params?: { search?: string }) =>

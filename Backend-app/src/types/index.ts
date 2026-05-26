@@ -181,6 +181,13 @@ export interface CheckoutTransaction {
   notes: string | null;
   created_at: Date;
   updated_at: Date;
+  request_number?: number;
+  tracking_status?: TrackingStatus;
+  tracking_notes?: string | null;
+  approved_at?: Date | null;
+  borrowed_at?: Date | null;
+  returned_at?: Date | null;
+  rejected_at?: Date | null;
 }
 
 export interface CheckoutTransactionItem {
@@ -191,6 +198,8 @@ export interface CheckoutTransactionItem {
   quantity_out: number;
   quantity_returned: number;
   created_at: Date;
+  lot_selected_automatically?: boolean;
+  selection_method?: 'manual' | 'auto_fifo' | 'auto_lifo' | 'auto_expiry';
 }
 
 export interface ReturnTransaction {

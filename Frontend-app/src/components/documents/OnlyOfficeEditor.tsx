@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { DocumentEditor } from '@onlyoffice/document-editor-react'
-import { documentsApi } from '@/api/documents'
+import { documentsApi, OnlyOfficeConfig } from '@/api/documents'
 
 interface OnlyOfficeEditorProps {
   docId: string
@@ -10,7 +10,7 @@ interface OnlyOfficeEditorProps {
 }
 
 export function OnlyOfficeEditor({ docId, onClose }: OnlyOfficeEditorProps) {
-  const [config, setConfig] = useState<any>(null)
+  const [config, setConfig] = useState<OnlyOfficeConfig['config'] | null>(null)
   const [documentServerUrl, setDocumentServerUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 

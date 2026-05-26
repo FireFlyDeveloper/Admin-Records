@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, RotateCcw, XCircle, Package, CheckCircle, Hourglass, Ban, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { PageShell } from '@/components/layout/PageShell'
@@ -60,9 +60,11 @@ export function CheckoutHistoryPage() {
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
   const [selectedCheckoutId, setSelectedCheckoutId] = useState<string | null>(null)
   const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
+  const [returnButtonClickedIds, setReturnButtonClickedIds] = useState<string[]>([])
 
   const { data: checkouts, isLoading } = useCheckouts({
     status: statusFilter || undefined,
+    user_id: !isAdminOrStaff ? user?.id : undefined,
   })
 
   const { data: checkoutDetail } = useCheckout(selectedCheckoutId)
@@ -80,8 +82,14 @@ export function CheckoutHistoryPage() {
     setSearchParams(params, { replace: true })
   }, [statusFilter, setSearchParams])
 
-  // Generate request number based on position in the list
-  const getRequestNumber = (index: number) => index + 1
+  // Get request number from database serial column, fallback to array index
+  const getRequestNumber = (txn: any, index: number) => {
+    if (txn.request_number !== undefined && txn.request_number !== null) {
+      return txn.request_number
+    }
+    // Fallback to array index for backward compatibility
+    return index + 1
+  }
 
   const handleReturn = (checkoutId: string) => {
     if (!checkoutDetail) return
@@ -109,11 +117,105 @@ export function CheckoutHistoryPage() {
   const canCancel = (status: CheckoutStatus) => status === 'approved' || status === 'pending'
   const canApprove = (status: CheckoutStatus) => status === 'pending'
 
-  function renderBorrowerInfo(notes: string | null | undefined) {
-    const parsedNotes = parseNotes(notes)
+  // Helper to check if checkout has only one item to return
+  const hasOnlyOneItemToReturn = useCallback((checkoutItems: any[]) => {
+    const itemsWithRemaining = checkoutItems.filter(item => {
+      const remaining = item.quantity_out - item.quantity_returned
+      return remaining > 0
+    })
+    return itemsWithRemaining.length === 1
+  }, [])
+
+  // Handle single-click return for single item checkouts
+  const handleSingleClickReturn = useCallback((checkoutId: string) => {
+    if (!checkoutDetail) return
     
-    // Student borrow - show full details
-    if (isStudentBorrow(parsedNotes)) {
+    const itemsWithRemaining = checkoutDetail.items.filter(item => {
+      const remaining = item.quantity_out - item.quantity_returned
+      return remaining > 0
+    })
+    
+    // Should only be called when there's exactly one item with remaining quantity
+    if (itemsWithRemaining.length !== 1) return
+    
+    const item = itemsWithRemaining[0]
+    const remaining = item.quantity_out - item.quantity_returned
+    
+    const lines: ReturnLine[] = [{
+      checkout_item_id: item.id,
+      quantity: remaining
+    }]
+    
+    returnCheckout.mutate({ id: checkoutId, data: { lines } }, {
+      onSuccess: () => {
+        setReturnQuantities({})
+        setSelectedCheckoutId(null)
+      },
+    })
+  }, [checkoutDetail, returnCheckout])
+
+  // Handle return button click
+  const handleReturnClick = (txn: any, isSelected: boolean) => {
+    // If checkout is not selected yet, select it first to get details
+    if (!isSelected) {
+      setSelectedCheckoutId(txn.id)
+      setReturnQuantities({})
+      // Track that this checkout was clicked for return
+      setReturnButtonClickedIds(prev => [...prev, txn.id])
+    } else {
+      // Already selected, check if single item
+      if (checkoutDetail && hasOnlyOneItemToReturn(checkoutDetail.items)) {
+        handleSingleClickReturn(txn.id)
+      } else {
+        // Multiple items, toggle panel
+        setSelectedCheckoutId(null)
+        setReturnQuantities({})
+      }
+    }
+  }
+
+  // Effect to handle single-click return after checkout detail loads
+  useEffect(() => {
+    if (selectedCheckoutId && checkoutDetail) {
+      // Check if this checkout was just selected (not already open)
+      // We need to track which checkouts were just clicked for return
+      const shouldCheckSingleItemReturn = returnButtonClickedIds.includes(selectedCheckoutId)
+      if (shouldCheckSingleItemReturn && hasOnlyOneItemToReturn(checkoutDetail.items)) {
+        // Create lines for single item return
+        const itemsWithRemaining = checkoutDetail.items.filter(item => {
+          const remaining = item.quantity_out - item.quantity_returned
+          return remaining > 0
+        })
+        
+        if (itemsWithRemaining.length === 1) {
+          const item = itemsWithRemaining[0]
+          const remaining = item.quantity_out - item.quantity_returned
+          
+          const lines: ReturnLine[] = [{
+            checkout_item_id: item.id,
+            quantity: remaining
+          }]
+          
+          returnCheckout.mutate({ id: selectedCheckoutId, data: { lines } }, {
+            onSuccess: () => {
+              setReturnQuantities({})
+              setSelectedCheckoutId(null)
+            },
+          })
+        }
+        // Remove from tracking after processing
+        setReturnButtonClickedIds(prev => prev.filter(id => id !== selectedCheckoutId))
+      }
+    }
+  }, [checkoutDetail, selectedCheckoutId, returnButtonClickedIds, hasOnlyOneItemToReturn, returnCheckout])
+
+  // State to track which checkout buttons were clicked for return
+function renderBorrowerInfo(notes: string | null | undefined) {
+    const parsedNotes = parseNotes(notes)
+    const isStudentBorrowCheck = isStudentBorrow(parsedNotes)
+    
+    // Admin/Staff can see full details for all borrows
+    if (isAdminOrStaff) {
       return (
         <div className="mt-1 text-xs text-muted-foreground space-y-0.5">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
@@ -122,21 +224,26 @@ export function CheckoutHistoryPage() {
             <p><span className="font-medium text-foreground/80">Requested By:</span> {parsedNotes?.name || 'N/A'}</p>
             <p><span className="font-medium text-foreground/80">Email:</span> {parsedNotes?.email || 'N/A'}</p>
             <p><span className="font-medium text-foreground/80">Item Borrowed:</span> {notes ? (JSON.parse(notes).item_name || 'N/A') : 'N/A'}</p>
-            <p><span className="font-medium text-foreground/80">SR-Code:</span> {parsedNotes?.srcode || 'N/A'}</p>
-            <p><span className="font-medium text-foreground/80">Program:</span> {parsedNotes?.course || 'N/A'}</p>
+            {isStudentBorrowCheck && (
+              <>
+                <p><span className="font-medium text-foreground/80">SR-Code:</span> {parsedNotes?.srcode || 'N/A'}</p>
+                <p><span className="font-medium text-foreground/80">Program:</span> {parsedNotes?.course || 'N/A'}</p>
+              </>
+            )}
           </div>
         </div>
       )
     }
     
-    // Admin/Staff borrow - show minimal info
+    // Students can see limited information for their own requests
+    // Based on role, not on whether it's a student borrow
     return (
       <div className="mt-1 text-xs text-muted-foreground space-y-0.5">
         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-          <p><span className="font-medium text-foreground/80">Time Requested:</span> {notes ? (JSON.parse(notes).created_at ? new Date(JSON.parse(notes).created_at).toLocaleString() : new Date().toLocaleString()) : new Date().toLocaleString()}</p>
+          <p><span className="font-medium text-foreground/80">Time Requested:</span> {notes ? new Date(JSON.parse(notes).created_at || Date.now()).toLocaleString() : 'N/A'}</p>
           <p><span className="font-medium text-foreground/80">Time Returned:</span> {notes ? (JSON.parse(notes).returned_at ? new Date(JSON.parse(notes).returned_at).toLocaleString() : 'N/A') : 'N/A'}</p>
-          <p><span className="font-medium text-foreground/80">Requested By:</span> {parsedNotes?.name || 'N/A'}</p>
           <p><span className="font-medium text-foreground/80">Item Borrowed:</span> {notes ? (JSON.parse(notes).item_name || 'N/A') : 'N/A'}</p>
+          <p><span className="font-medium text-foreground/80">Status:</span> {getStatusConfig(notes ? JSON.parse(notes).status : '').label}</p>
         </div>
       </div>
     )
@@ -187,7 +294,7 @@ export function CheckoutHistoryPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 sm:gap-2">
                         <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Request #{getRequestNumber(index)}</span>
+                        <span className="text-sm font-medium">Request #{getRequestNumber(txn, index)}</span>
                         <Badge variant="outline" className={cn('text-xs flex items-center gap-1', status.color)}>
                           {status.icon}
                           {status.label}
@@ -234,12 +341,12 @@ export function CheckoutHistoryPage() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation()
-                            setSelectedCheckoutId(isSelected ? null : txn.id)
-                            setReturnQuantities({})
+                            handleReturnClick(txn, isSelected)
                           }}
+                          disabled={returnCheckout.isPending && checkoutDetail?.transaction.id === txn.id}
                         >
                           <RotateCcw className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
-                          Return
+                          {returnCheckout.isPending && checkoutDetail?.transaction.id === txn.id ? 'Processing...' : 'Return'}
                         </Button>
                       )}
                       {/* Students can cancel their own pending requests; admin/staff can cancel any approved/pending */}

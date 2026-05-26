@@ -7,6 +7,7 @@ import {
   updateItem,
   softDeleteItem,
   listLotsByItem,
+  getLotById,
   createLot,
   updateLot,
   createCheckout,
@@ -167,6 +168,15 @@ export async function getLots(req: AuthRequest, res: Response, next: NextFunctio
   }
 }
 
+export async function getLot(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const lot = await getLotById(req.params.lotId as string);
+    res.json({ lot });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function postLot(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);
@@ -291,7 +301,35 @@ export async function getCheckouts(req: AuthRequest, res: Response, next: NextFu
       status: status as string | undefined,
       itemId: item_id as string | undefined,
     });
-    res.json({ transactions });
+    
+    // Apply role-based response formatting
+    const formattedTransactions = transactions.map(txn => {
+      if (ctx.isAdmin || ctx.isStaff) {
+        // Admins/staff see full notes
+        return txn;
+      } else {
+        // Students see sanitized notes - only include non-sensitive fields
+        const sanitizedTxn = { ...txn };
+        if (sanitizedTxn.notes) {
+          try {
+            const notesJson = JSON.parse(sanitizedTxn.notes);
+            // Only keep fields students should see
+            const sanitizedNotes = {
+              created_at: notesJson.created_at || null,
+              returned_at: notesJson.returned_at || null,
+              item_name: notesJson.item_name || null,
+              status: notesJson.status || null
+            };
+            sanitizedTxn.notes = JSON.stringify(sanitizedNotes);
+          } catch {
+            // If notes is not valid JSON, keep as-is (might be plain text)
+          }
+        }
+        return sanitizedTxn;
+      }
+    });
+    
+    res.json({ transactions: formattedTransactions });
   } catch (err) {
     next(err);
   }
@@ -305,6 +343,23 @@ export async function getCheckout(req: AuthRequest, res: Response, next: NextFun
     // Students can only view their own
     if (!ctx.isAdmin && !ctx.isStaff && result.transaction.checked_out_by !== ctx.userId) {
       throw new ForbiddenError();
+    }
+
+    // Apply role-based response formatting
+    if (!ctx.isAdmin && !ctx.isStaff && result.transaction.notes) {
+      try {
+        const notesJson = JSON.parse(result.transaction.notes);
+        // Only keep fields students should see
+        const sanitizedNotes = {
+          created_at: notesJson.created_at || null,
+          returned_at: notesJson.returned_at || null,
+          item_name: notesJson.item_name || null,
+          status: notesJson.status || null
+        };
+        result.transaction.notes = JSON.stringify(sanitizedNotes);
+      } catch {
+        // If notes is not valid JSON, keep as-is (might be plain text)
+      }
     }
 
     res.json(result);

@@ -627,6 +627,19 @@ BEGIN
     ALTER TABLE checkout_transactions 
     ADD COLUMN rejected_at TIMESTAMPTZ;
   END IF;
+  
+  -- Add request_number column if not exists
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'checkout_transactions' AND column_name = 'request_number'
+  ) THEN
+    -- Add auto-incrementing request number
+    ALTER TABLE checkout_transactions 
+    ADD COLUMN request_number SERIAL;
+    
+    -- Create index for faster queries
+    CREATE INDEX IF NOT EXISTS idx_checkout_request_number ON checkout_transactions(request_number DESC);
+  END IF;
 END $$;
 
 -- Update existing statuses to tracking_status
@@ -643,9 +656,83 @@ SET tracking_status =
   END
 WHERE tracking_status IS NULL;
 
+-- Add automatic lot selection tracking to checkout_transaction_items
+DO $$ 
+BEGIN
+  -- Check if lot selection tracking fields exist
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'checkout_transaction_items' AND column_name = 'lot_selected_automatically'
+  ) THEN
+    ALTER TABLE checkout_transaction_items 
+    ADD COLUMN lot_selected_automatically BOOLEAN DEFAULT FALSE;
+    
+    ALTER TABLE checkout_transaction_items 
+    ADD COLUMN selection_method VARCHAR(50) DEFAULT 'manual' CHECK (selection_method IN ('manual', 'auto_fifo', 'auto_lifo', 'auto_expiry'));
+  END IF;
+END $$;
+
 -- =============================================================================
--- SCANNER INTEGRATION SUPPORT
+-- AUTOMATIC LOT SELECTION FUNCTIONS
 -- =============================================================================
+
+-- Function for automatic lot selection (FIFO, LIFO, expiry-based)
+CREATE OR REPLACE FUNCTION select_available_lot_for_item(
+  p_item_id UUID,
+  p_quantity_needed INTEGER,
+  p_selection_method VARCHAR(50) DEFAULT 'auto_fifo'
+) RETURNS TABLE (
+  lot_id UUID,
+  quantity_available INTEGER,
+  quantity_to_take INTEGER
+) AS $$
+DECLARE
+  v_remaining_needed INTEGER := p_quantity_needed;
+  v_lot_record RECORD;
+  v_quantity_to_take INTEGER;
+BEGIN
+  -- Get available lots based on selection method
+  FOR v_lot_record IN 
+    SELECT 
+      il.id,
+      il.quantity_on_hand - COALESCE(SUM(CASE 
+        WHEN cti.transaction_id IS NOT NULL AND ct.status NOT IN ('cancelled', 'rejected', 'closed')
+        THEN cti.quantity_out - cti.quantity_returned
+        ELSE 0
+      END), 0) as available
+    FROM item_lots il
+    LEFT JOIN checkout_transaction_items cti ON cti.lot_id = il.id 
+    LEFT JOIN checkout_transactions ct ON ct.id = cti.transaction_id
+    WHERE il.item_id = p_item_id 
+      AND il.quantity_on_hand > 0
+    GROUP BY il.id, il.quantity_on_hand, il.created_at, il.expires_at
+    HAVING (il.quantity_on_hand - COALESCE(SUM(CASE 
+      WHEN cti.transaction_id IS NOT NULL AND ct.status NOT IN ('cancelled', 'rejected', 'closed')
+      THEN cti.quantity_out - cti.quantity_returned
+      ELSE 0
+    END), 0)) > 0
+    ORDER BY 
+      CASE p_selection_method
+        WHEN 'auto_fifo' THEN il.created_at -- First In First Out
+        WHEN 'auto_lifo' THEN il.created_at DESC -- Last In First Out  
+        WHEN 'auto_expiry' THEN COALESCE(il.expires_at, 'infinity'::TIMESTAMPTZ) -- Earliest expiry first
+        ELSE il.created_at
+      END
+  LOOP
+    IF v_remaining_needed <= 0 THEN
+      EXIT;
+    END IF;
+    
+    v_quantity_to_take := LEAST(v_lot_record.available, v_remaining_needed);
+    v_remaining_needed := v_remaining_needed - v_quantity_to_take;
+    
+    lot_id := v_lot_record.id;
+    quantity_available := v_lot_record.available;
+    quantity_to_take := v_quantity_to_take;
+    RETURN NEXT;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE TABLE IF NOT EXISTS scanner_sessions (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

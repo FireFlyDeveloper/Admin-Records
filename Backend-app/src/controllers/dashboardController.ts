@@ -97,34 +97,93 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
       throw new ForbiddenError('Dashboard access requires staff or admin role');
     }
 
-    const itemCount = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM items WHERE deleted_at IS NULL`);
-    const documentCount = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM documents WHERE deleted_at IS NULL`);
-    const checkoutCount = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM checkout_transactions`);
-    const missingCount = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM item_presence_state WHERE presence_status = 'missing'`);
-    const offlineCount = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM devices WHERE is_active = true AND offline_since IS NOT NULL`);
-    const activeCheckoutCount = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM checkout_transactions WHERE status = 'open'`);
-    const userCount = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM users WHERE deleted_at IS NULL`);
+    // Optimized single query with CTEs to reduce database round trips
+    const statsResult = await query<{
+      total_items: string;
+      total_documents: string;
+      total_users: string;
+      missing_items: string;
+      offline_devices: string;
+      recent_checkouts: string;
+      active_checkouts: string;
+      expired_items: string;
+      expiring_soon_items: string;
+      expiring_month_items: string;
+      quantifiable_total: string;
+    }>(`
+      WITH 
+      items_stats AS (
+        SELECT COUNT(*) as total_items FROM items WHERE deleted_at IS NULL
+      ),
+      documents_stats AS (
+        SELECT COUNT(*) as total_documents FROM documents WHERE deleted_at IS NULL
+      ),
+      users_stats AS (
+        SELECT COUNT(*) as total_users FROM users WHERE deleted_at IS NULL
+      ),
+      missing_stats AS (
+        SELECT COUNT(*) as missing_items FROM item_presence_state WHERE presence_status = 'missing'
+      ),
+      offline_stats AS (
+        SELECT COUNT(*) as offline_devices FROM devices WHERE is_active = true AND offline_since IS NOT NULL
+      ),
+      checkout_stats AS (
+        SELECT 
+          COUNT(*) as recent_checkouts,
+          COUNT(*) FILTER (WHERE status = 'open') as active_checkouts
+        FROM checkout_transactions
+      ),
+      expiration_stats AS (
+        SELECT
+          COUNT(DISTINCT item_id) FILTER (WHERE quantity_on_hand > 0 AND expires_at < CURRENT_DATE) as expired_items,
+          COUNT(DISTINCT item_id) FILTER (WHERE quantity_on_hand > 0 AND expires_at >= CURRENT_DATE AND expires_at < CURRENT_DATE + INTERVAL '7 days') as expiring_soon_items,
+          COUNT(DISTINCT item_id) FILTER (WHERE quantity_on_hand > 0 AND expires_at >= CURRENT_DATE AND expires_at < CURRENT_DATE + INTERVAL '30 days') as expiring_month_items
+        FROM item_lots
+      ),
+      quantifiable_stats AS (
+        SELECT COUNT(*) as quantifiable_total FROM items WHERE item_type = 'quantifiable' AND deleted_at IS NULL
+      )
+      SELECT 
+        i.total_items::text,
+        d.total_documents::text,
+        u.total_users::text,
+        m.missing_items::text,
+        o.offline_devices::text,
+        c.recent_checkouts::text,
+        c.active_checkouts::text,
+        e.expired_items::text,
+        e.expiring_soon_items::text,
+        e.expiring_month_items::text,
+        q.quantifiable_total::text
+      FROM items_stats i
+      CROSS JOIN documents_stats d
+      CROSS JOIN users_stats u
+      CROSS JOIN missing_stats m
+      CROSS JOIN offline_stats o
+      CROSS JOIN checkout_stats c
+      CROSS JOIN expiration_stats e
+      CROSS JOIN quantifiable_stats q
+    `);
 
-    // Expiration KPIs
-    const expiredCount = await query<{ count: string }>(`SELECT COUNT(DISTINCT item_id)::text as count FROM item_lots WHERE quantity_on_hand > 0 AND expires_at < CURRENT_DATE`);
-    const expiringSoonCount = await query<{ count: string }>(`SELECT COUNT(DISTINCT item_id)::text as count FROM item_lots WHERE quantity_on_hand > 0 AND expires_at >= CURRENT_DATE AND expires_at < CURRENT_DATE + INTERVAL '7 days'`);
-    const expiringMonthCount = await query<{ count: string }>(`SELECT COUNT(DISTINCT item_id)::text as count FROM item_lots WHERE quantity_on_hand > 0 AND expires_at >= CURRENT_DATE AND expires_at < CURRENT_DATE + INTERVAL '30 days'`);
-    const quantifiableTotalCount = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM items WHERE item_type = 'quantifiable' AND deleted_at IS NULL`);
-
+    const row = statsResult.rows[0];
+    const expired = parseInt(row.expired_items, 10);
+    const expiringMonth = parseInt(row.expiring_month_items, 10);
+    const quantifiableTotal = parseInt(row.quantifiable_total, 10);
+    
     res.json({
       stats: {
-        totalItems: parseInt(itemCount.rows[0].count, 10),
-        totalDocuments: parseInt(documentCount.rows[0].count, 10),
-        totalUsers: parseInt(userCount.rows[0].count, 10),
-        missingItemsCount: parseInt(missingCount.rows[0].count, 10),
-        offlineDevicesCount: parseInt(offlineCount.rows[0].count, 10),
-        recentCheckoutsCount: parseInt(checkoutCount.rows[0].count, 10),
-        activeCheckoutsCount: parseInt(activeCheckoutCount.rows[0].count, 10),
+        totalItems: parseInt(row.total_items, 10),
+        totalDocuments: parseInt(row.total_documents, 10),
+        totalUsers: parseInt(row.total_users, 10),
+        missingItemsCount: parseInt(row.missing_items, 10),
+        offlineDevicesCount: parseInt(row.offline_devices, 10),
+        recentCheckoutsCount: parseInt(row.recent_checkouts, 10),
+        activeCheckoutsCount: parseInt(row.active_checkouts, 10),
         expirationKpis: {
-          expired: parseInt(expiredCount.rows[0].count, 10),
-          expiringSoon: parseInt(expiringSoonCount.rows[0].count, 10),
-          expiringMonth: parseInt(expiringMonthCount.rows[0].count, 10),
-          safe: parseInt(quantifiableTotalCount.rows[0].count, 10) - parseInt(expiringMonthCount.rows[0].count, 10) - parseInt(expiredCount.rows[0].count, 10),
+          expired: expired,
+          expiringSoon: parseInt(row.expiring_soon_items, 10),
+          expiringMonth: expiringMonth,
+          safe: quantifiableTotal - expiringMonth - expired,
         }
       },
     });
@@ -143,59 +202,54 @@ export async function getRecentActivity(req: AuthRequest, res: Response, next: N
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
     const safeLimit = Math.min(Math.max(limit, 1), 100);
 
+    // Optimized query with LEFT JOIN to get actor display names in one query
     const result = await query<{
       id: string;
       source: string;
       actor_id: string | null;
+      actor_display_name: string | null;
       action: string;
       entity_type: string | null;
       entity_id: string | null;
       metadata: Record<string, unknown> | null;
       created_at: Date;
     }>(`
-      (
-        SELECT al.id::text, 'audit' as source, al.actor_id::text, al.action, al.entity_type, al.entity_id::text, al.after_state as metadata, al.created_at
-        FROM audit_logs al
-        ORDER BY al.created_at DESC
-        LIMIT $1
+      WITH recent_activity AS (
+        (
+          SELECT al.id::text, 'audit' as source, al.actor_id::text, al.action, al.entity_type, al.entity_id::text, al.after_state as metadata, al.created_at
+          FROM audit_logs al
+          ORDER BY al.created_at DESC
+          LIMIT $1
+        )
+        UNION ALL
+        (
+          SELECT dal.id::text, 'document' as source, dal.actor_id::text, dal.action, 'document' as entity_type, dal.document_id::text, dal.metadata, dal.created_at
+          FROM document_activity_logs dal
+          ORDER BY dal.created_at DESC
+          LIMIT $1
+        )
+        UNION ALL
+        (
+          SELECT ct.id::text, 'checkout' as source, ct.checked_out_by::text as actor_id, 'checkout' as action, 'checkout_transaction' as entity_type, ct.id::text as entity_id, jsonb_build_object('status', ct.status, 'notes', ct.notes) as metadata, ct.created_at
+          FROM checkout_transactions ct
+          ORDER BY ct.created_at DESC
+          LIMIT $1
+        )
       )
-      UNION ALL
-      (
-        SELECT dal.id::text, 'document' as source, dal.actor_id::text, dal.action, 'document' as entity_type, dal.document_id::text, dal.metadata, dal.created_at
-        FROM document_activity_logs dal
-        ORDER BY dal.created_at DESC
-        LIMIT $1
-      )
-      UNION ALL
-      (
-        SELECT ct.id::text, 'checkout' as source, ct.checked_out_by::text as actor_id, 'checkout' as action, 'checkout_transaction' as entity_type, ct.id::text as entity_id, jsonb_build_object('status', ct.status, 'notes', ct.notes) as metadata, ct.created_at
-        FROM checkout_transactions ct
-        ORDER BY ct.created_at DESC
-        LIMIT $1
-      )
-      ORDER BY created_at DESC
+      SELECT 
+        ra.*,
+        u.display_name as actor_display_name
+      FROM recent_activity ra
+      LEFT JOIN users u ON u.id = ra.actor_id
+      ORDER BY ra.created_at DESC
       LIMIT $1
     `, [safeLimit]);
-
-    // Map to frontend expected shape
-    // Resolve actor names from users table
-    const actorIds = [...new Set(result.rows.map((r) => r.actor_id).filter(Boolean))];
-    const actorMap: Record<string, string> = {};
-    if (actorIds.length > 0) {
-      const placeholders = actorIds.map((_, i) => `$${i + 1}`).join(',');
-      const userResult = await query<{ id: string; display_name: string }>(
-        `SELECT id::text, display_name FROM users WHERE id IN (${placeholders})`
-      , actorIds);
-      for (const u of userResult.rows) {
-        actorMap[u.id] = u.display_name;
-      }
-    }
 
     const activity = result.rows.map((r) => ({
       id: r.id,
       entityType: r.entity_type || r.source,
       action: r.action,
-      actorName: r.actor_id ? (actorMap[r.actor_id] || r.actor_id.slice(0, 8) + '...') : 'System',
+      actorName: r.actor_display_name || (r.actor_id ? r.actor_id.slice(0, 8) + '...' : 'System'),
       description: r.metadata ? formatDescription(r.action, r.entity_type, r.metadata) : '',
       createdAt: r.created_at,
     }));

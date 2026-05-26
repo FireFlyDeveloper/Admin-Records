@@ -32,11 +32,17 @@ export function FileViewer({ open, onOpenChange, document: doc }: FileViewerProp
   const blobUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!open || !doc) {
+    // Cleanup function for when effect re-runs or unmounts
+    return () => {
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current)
         blobUrlRef.current = null
       }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!open || !doc) {
       setBlobUrl(null)
       setDocxHtml(null)
       setError(null)
@@ -76,6 +82,7 @@ export function FileViewer({ open, onOpenChange, document: doc }: FileViewerProp
       } catch (err) {
         if (!cancelled) {
           setError('Failed to load file. Please try again.')
+          console.error('File load error:', err)
         }
       } finally {
         if (!cancelled) {
@@ -93,7 +100,7 @@ export function FileViewer({ open, onOpenChange, document: doc }: FileViewerProp
         blobUrlRef.current = null
       }
     }
-  }, [open, doc?.id])
+  }, [open, doc])
 
   if (!open || !doc) return null
 

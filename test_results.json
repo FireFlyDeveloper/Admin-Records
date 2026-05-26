@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-05-25T00:45:31.953Z",
+  "totalTests": 3,
+  "passedTests": 0,
+  "failedTests": 3,
+  "details": [
+    {
+      "name": "Health Check",
+      "passed": false,
+      "expectedStatus": 200,
+      "actualStatus": 401,
+      "response": {
+        "error": "Missing or invalid authorization header",
+        "code": "UNAUTHORIZED"
+      },
+      "error": "Expected 200, got 401"
+    },
+    {
+      "name": "User Registration",
+      "passed": false,
+      "expectedStatus": 201,
+      "actualStatus": 401,
+      "response": {
+        "error": "Missing or invalid authorization header",
+        "code": "UNAUTHORIZED"
+      },
+      "error": "Expected 201, got 401"
+    },
+    {
+      "name": "User Login",
+      "passed": false,
+      "expectedStatus": 200,
+      "actualStatus": 500,
+      "response": {
+        "error": "Internal server error",
+        "code": "INTERNAL_ERROR"
+      },
+      "error": "Expected 200, got 500"
+    }
+  ]
+}

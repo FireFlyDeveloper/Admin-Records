@@ -15,6 +15,7 @@ export interface CheckoutHistoryEntry {
   createdAt: string
   updatedAt: string
   itemCount: number
+  requestNumber?: number
 }
 
 export interface MissingItemEntry {

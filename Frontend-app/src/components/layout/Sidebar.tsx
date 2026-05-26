@@ -116,7 +116,7 @@ export function Sidebar() {
   const { data: stats } = useDashboardStats()
   
   // Fetch notification counts from new notification system
-  const { counts: notificationCounts, isLoading: countsLoading } = useSidebarNotificationCounts()
+  const { counts: notificationCounts } = useSidebarNotificationCounts()
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -135,7 +135,7 @@ export function Sidebar() {
   // Get notification counts - use new notification system first, fallback to dashboard stats
   const pendingRequestsCount = notificationCounts?.pending_requests ?? stats?.activeCheckoutsCount ?? 0
   const missingItemsCount = notificationCounts?.missing_items ?? stats?.missingItemsCount ?? 0
-  const expiringItemsCount = notificationCounts?.expiring_items ?? ((stats?.expirationKpis?.expiringSoon ?? 0) + (stats?.expirationKpis?.expiringMonth ?? 0)) ?? 0
+  const expiringItemsCount = notificationCounts?.expiring_items ?? ((stats?.expirationKpis?.expiringSoon ?? 0) + (stats?.expirationKpis?.expiringMonth ?? 0))
   const totalUnread = notificationCounts?.total_unread ?? 0
 
   const getBadgeCount = (badge: NavItem['badge']) => {

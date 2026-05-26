@@ -33,8 +33,8 @@ export function PermissionEditor({ type, id }: PermissionEditorProps) {
   const removeDocPerm = useRemoveDocumentPermission()
   const removeFolderPerm = useRemoveFolderPermission()
 
-  const owner = type === 'document' ? (docPerms.data as any)?.owner : null
-  const permissions: any[] = data?.permissions || []
+  const owner = type === 'document' ? (docPerms.data as { owner: { id: string; display_name: string; email: string } | null } | null)?.owner : null
+  const permissions: Permission[] = data?.permissions || []
   const currentUser = useAuthStore((state) => state.user)
 
   // Filter out owner's own permission entries (they own it anyway)

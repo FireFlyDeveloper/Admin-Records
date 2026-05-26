@@ -6,6 +6,7 @@ import {
   patchItem,
   deleteItem,
   getLots,
+  getLot,
   postLot,
   patchLot,
   postCheckout,
@@ -32,6 +33,7 @@ router.delete('/items/:id', deleteItem);
 
 // Lots
 router.get('/items/:id/lots', getLots);
+router.get('/lots/:lotId', getLot);
 router.post('/items/:id/lots', postLot);
 router.patch('/lots/:lotId', patchLot);
 
@@ -46,5 +48,6 @@ router.post('/checkout/:id/cancel', postCancel);
 
 // Scan
 router.post('/checkout/scan', postScan);
+router.post('/scan', postScan);
 
 export default router;

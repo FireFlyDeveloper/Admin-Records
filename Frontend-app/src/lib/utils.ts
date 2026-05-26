@@ -42,7 +42,7 @@ export function selectMostAppropriateLots<T extends { quantity_on_hand: number; 
   if (availableLots.length === 0) return []
 
   // Sort lots based on strategy
-  let sortedLots = [...availableLots]
+  const sortedLots = [...availableLots]
   if (strategy === 'fifo') {
     // For FIFO: sort by expiration date (earliest first), then by purchase date, then by quantity
     sortedLots.sort((a, b) => {

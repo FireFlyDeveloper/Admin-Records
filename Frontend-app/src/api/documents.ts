@@ -83,5 +83,19 @@ export const documentsApi = {
 
   // ONLYOFFICE
   getOnlyOfficeConfig: (docId: string) =>
-    api.post<{ config: any; documentServerUrl: string }>(`/onlyoffice/config/${docId}`).then(r => r.data),
+    api.post<{
+      config: {
+        document: { fileType: string; key: string; title: string; url: string };
+        documentType: string;
+        editorConfig: {
+          callbackUrl: string;
+          user: { id: string; name: string };
+        };
+        height: string;
+        token: string;
+        type: string;
+        width: string;
+      };
+      documentServerUrl: string;
+    }>(`/onlyoffice/config/${docId}`).then(r => r.data),
 }

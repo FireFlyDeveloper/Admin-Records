@@ -1,0 +1,36 @@
+global:
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'administrativerecordsystem@gmail.com'
+  smtp_auth_username: 'administrativerecordsystem@gmail.com'
+  smtp_auth_password: 'your-app-password'
+  smtp_require_tls: true
+
+route:
+  receiver: 'admin-records-team'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  routes:
+    - match:
+        severity: critical
+      receiver: 'pagerduty-notifications'
+      continue: true
+    - match:
+        severity: warning
+      receiver: 'email-notifications'
+      continue: true
+
+receivers:
+  - name: 'admin-records-team'
+    email_configs:
+      - to: 'administrativerecordsystem@gmail.com,rhomermarquez0113@gmail.com'
+
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'administrativerecordsystem@gmail.com'
+
+  - name: 'pagerduty-notifications'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+        send_resolved: true

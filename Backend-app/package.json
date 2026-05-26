@@ -11,7 +11,11 @@
     "migrate:rollback": "ts-node scripts/migrate.ts rollback",
     "migrate:status": "ts-node scripts/migrate.ts status",
     "migrate:create": "ts-node scripts/migrate.ts create",
-    "seed": "ts-node scripts/seed.ts"
+    "seed": "ts-node scripts/seed.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --maxWorkers=2"
   },
   "keywords": [],
   "author": "",
@@ -38,6 +42,7 @@
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",

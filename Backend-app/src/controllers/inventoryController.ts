@@ -1,3 +1,21 @@
+/**
+ * @file Inventory Controller
+ * @description Handles all inventory-related operations including item CRUD, lot management, checkout flows, and barcode scanning
+ * @module controllers/inventoryController
+ * @requires express
+ * @requires ../services/inventoryService
+ * @requires ../middleware/auth
+ * @requires ../services/emailService
+ * @requires ../utils/errors
+ * 
+ * @author Admin-Records Team
+ * @since 2024-04-25
+ * 
+ * @see {@link ../services/inventoryService Inventory Service}
+ * @see {@link ../middleware/auth Authentication Middleware}
+ * @see {@link https://github.com/admin-records/docs/api/inventory Inventory API Docs}
+ */
+
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import {
@@ -30,6 +48,24 @@ import {
   notifyPublicBorrowerApproved,
 } from '../services/emailService';
 
+/**
+ * Extracts and validates user context from authenticated request
+ * 
+ * @function getUserContext
+ * @param {AuthRequest} req - Authenticated express request object
+ * 
+ * @returns {{userId: string, userRoles: string[], isAdmin: boolean, isStaff: boolean, canCheckoutQuantifiable: boolean}} User context object
+ * 
+ * @throws {ForbiddenError} When user is not authenticated
+ * @throws {TypeError} When user roles are not an array
+ * 
+ * @private
+ * @since 1.0.0
+ * 
+ * @example
+ * const { userId, userRoles, isAdmin, isStaff, canCheckoutQuantifiable } = getUserContext(req)
+ * // Returns: { userId: 'uuid', userRoles: ['admin'], isAdmin: true, isStaff: true, canCheckoutQuantifiable: true }
+ */
 function getUserContext(req: AuthRequest) {
   const user = req.user;
   if (!user) throw new ForbiddenError();
@@ -41,6 +77,42 @@ function getUserContext(req: AuthRequest) {
 
 // --- Items ---
 
+/**
+ * Retrieves paginated list of inventory items with optional filtering
+ * 
+ * @async
+ * @function getItems
+ * @param {AuthRequest} req - Authenticated express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
+ * 
+ * @query {string} [type] - Filter by item type (trackable/quantifiable)
+ * @query {string} [category] - Filter by item category
+ * @query {string} [status] - Filter by item status
+ * @query {string} [search] - Search term for name/description matching
+ * @query {string} [room] - Filter by room location
+ * @query {string} [expiration] - Filter by expiration criteria
+ * 
+ * @returns {Promise<Response>} JSON response with items array
+ * 
+ * @throws {DatabaseError} When database query fails
+ * @throws {ValidationError} When query parameters are invalid
+ * @throws {ForbiddenError} When user is not authenticated
+ * 
+ * @example
+ * // Request: GET /api/items?status=available&search=laptop
+ * // Response: { items: [{ id: 'uuid', name: 'Laptop', status: 'available', ... }] }
+ * 
+ * @example
+ * // Request: GET /api/items?type=trackable&category=equipment
+ * // Response: { items: [...filtered items...] }
+ * 
+ * @since 1.0.0
+ * @author Admin-Records Team
+ * 
+ * @see {@link ../services/inventoryService.listItems Service Implementation}
+ * @see {@link https://github.com/admin-records/docs/api/items GET /api/items API Docs}
+ */
 export async function getItems(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const { type, category, status, search, room, expiration } = req.query;
@@ -58,6 +130,34 @@ export async function getItems(req: AuthRequest, res: Response, next: NextFuncti
   }
 }
 
+/**
+ * Retrieves a single inventory item by ID
+ * 
+ * @async
+ * @function getItem
+ * @param {AuthRequest} req - Authenticated express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
+ * 
+ * @param {string} req.params.id - Item UUID
+ * 
+ * @returns {Promise<Response>} JSON response with item object
+ * 
+ * @throws {NotFoundError} When item ID is not found
+ * @throws {DatabaseError} When database query fails
+ * @throws {ForbiddenError} When user is not authenticated
+ * @throws {ValidationError} When item ID format is invalid
+ * 
+ * @example
+ * // Request: GET /api/items/123e4567-e89b-12d3-a456-426614174000
+ * // Response: { item: { id: 'uuid', name: 'Laptop', status: 'available', ... } }
+ * 
+ * @since 1.0.0
+ * @author Admin-Records Team
+ * 
+ * @see {@link ../services/inventoryService.getItemById Service Implementation}
+ * @see {@link https://github.com/admin-records/docs/api/items/:id GET /api/items/:id API Docs}
+ */
 export async function getItem(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const item = await getItemById(req.params.id as string);
@@ -67,6 +167,40 @@ export async function getItem(req: AuthRequest, res: Response, next: NextFunctio
   }
 }
 
+/**
+ * Creates a new inventory item
+ * 
+ * @async
+ * @function postItem
+ * @param {AuthRequest} req - Authenticated express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
+ * 
+ * @body {string} item_type - Item type: 'trackable' or 'quantifiable'
+ * @body {string} name - Item name (required)
+ * @body {string} [sku] - Stock keeping unit
+ * @body {string} [category] - Item category
+ * @body {string} [description] - Item description
+ * @body {string} [status] - Initial status
+ * 
+ * @returns {Promise<Response>} JSON response with created item (201 status)
+ * 
+ * @throws {ValidationError} When required fields are missing or invalid
+ * @throws {ForbiddenError} When user lacks admin/staff permissions
+ * @throws {DatabaseError} When database insert fails
+ * @throws {UniqueConstraintError} When SKU conflicts with existing item
+ * 
+ * @example
+ * // Request: POST /api/items
+ * // Body: { item_type: 'trackable', name: 'Microscope', category: 'Lab Equipment' }
+ * // Response: { item: { id: 'uuid', item_type: 'trackable', name: 'Microscope', ... } }
+ * 
+ * @since 1.0.0
+ * @author Admin-Records Team
+ * 
+ * @see {@link ../services/inventoryService.createItem Service Implementation}
+ * @see {@link https://github.com/admin-records/docs/api/items POST /api/items API Docs}
+ */
 export async function postItem(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);
@@ -106,6 +240,41 @@ export async function postItem(req: AuthRequest, res: Response, next: NextFuncti
   }
 }
 
+/**
+ * Updates an existing inventory item
+ * 
+ * @async
+ * @function patchItem
+ * @param {AuthRequest} req - Authenticated express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
+ * 
+ * @param {string} req.params.id - Item UUID to update
+ * @param {string} [req.body.name] - Updated item name
+ * @param {string} [req.body.sku] - Updated SKU
+ * @param {string} [req.body.category] - Updated category
+ * @param {string} [req.body.description] - Updated description
+ * @param {string} [req.body.status] - Updated status
+ * 
+ * @returns {Promise<Response>} JSON response with updated item
+ * 
+ * @throws {ValidationError} When request body contains invalid data
+ * @throws {NotFoundError} When item ID is not found
+ * @throws {ForbiddenError} When user lacks admin/staff permissions
+ * @throws {DatabaseError} When database update fails
+ * @throws {UniqueConstraintError} When SKU conflicts with another item
+ * 
+ * @example
+ * // Request: PATCH /api/items/123e4567-e89b-12d3-a456-426614174000
+ * // Body: { name: 'Updated Microscope', status: 'maintenance' }
+ * // Response: { item: { id: 'uuid', name: 'Updated Microscope', status: 'maintenance', ... } }
+ * 
+ * @since 1.0.0
+ * @author Admin-Records Team
+ * 
+ * @see {@link ../services/inventoryService.updateItem Service Implementation}
+ * @see {@link https://github.com/admin-records/docs/api/items/:id PATCH /api/items/:id API Docs}
+ */
 export async function patchItem(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);
@@ -135,6 +304,34 @@ export async function patchItem(req: AuthRequest, res: Response, next: NextFunct
   }
 }
 
+/**
+ * Soft deletes an inventory item (marks as deleted, not permanent)
+ * 
+ * @async
+ * @function deleteItem
+ * @param {AuthRequest} req - Authenticated express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next middleware function
+ * 
+ * @param {string} req.params.id - Item UUID to delete
+ * 
+ * @returns {Promise<Response>} 204 No Content status
+ * 
+ * @throws {NotFoundError} When item ID is not found
+ * @throws {ForbiddenError} When user lacks admin/staff permissions
+ * @throws {DatabaseError} When database update fails
+ * @throws {ValidationError} When item has active checkouts or dependencies
+ * 
+ * @example
+ * // Request: DELETE /api/items/123e4567-e89b-12d3-a456-426614174000
+ * // Response: 204 No Content
+ * 
+ * @since 1.0.0
+ * @author Admin-Records Team
+ * 
+ * @see {@link ../services/inventoryService.softDeleteItem Service Implementation}
+ * @see {@link https://github.com/admin-records/docs/api/items/:id DELETE /api/items/:id API Docs}
+ */
 export async function deleteItem(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);

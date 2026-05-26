@@ -20,34 +20,88 @@ import { initWebSocket } from './services/websocketService';
 import { runMissingDetectionJob, runDeviceOfflineJob } from './services/bleService';
 import { config } from './utils/config';
 import { query } from './utils/db';
+import { 
+  sanitizeInputs, 
+  rateLimiters, 
+  securityLogger, 
+  securityHeaders 
+} from './middleware/security';
 
 const app = express();
 
-app.use(helmet());
+// Enhanced security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // We'll set CSP manually in production
+  crossOriginEmbedderPolicy: true,
+  crossOriginOpenerPolicy: true,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  dnsPrefetchControl: true,
+  frameguard: { action: 'deny' },
+  hidePoweredBy: true,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  ieNoOpen: true,
+  noSniff: true,
+  originAgentCluster: true,
+  permittedCrossDomainPolicies: false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  xssFilter: true,
+}));
+
+// Custom security headers middleware
+app.use(securityHeaders);
+
+// CORS configuration - restrict origins in production
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow all origins for now
-    callback(null, true);
+    // Allow all origins in development, restrict in production
+    if (config.nodeEnv === 'development') {
+      callback(null, true);
+    } else {
+      // In production, only allow specific origins
+      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count', 'X-Total-Pages'],
+  maxAge: 86400, // 24 hours
 }));
-app.use(morgan('dev'));
+
+// Rate limiting - apply before other middleware
+app.use('/auth', rateLimiters.auth);
+app.use('/users', rateLimiters.api);
+
+// Security logger middleware
+app.use(securityLogger);
+
+// Input sanitization middleware
+app.use(sanitizeInputs);
+
+app.use(morgan('combined', {
+  skip: (req) => req.path === '/health'
+}));
 
 // Custom JSON parser with error handling
-app.use((req, res, next) => {
-  express.json()(req, res, (err) => {
-    if (err) {
-      console.error('JSON parsing error:', err);
-      return res.status(400).json({ 
-        error: 'Invalid JSON in request body',
-        code: 'INVALID_JSON' 
-      });
-    }
-    next();
-  });
-});
+// Improved JSON parser with size limiting
+app.use(express.json({ 
+  limit: '10mb', // Maximum request body size
+  verify: (req, res, buf) => {
+    // Store raw body for webhook signature verification if needed
+    (req as any).rawBody = buf;
+  }
+}));
 
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
@@ -141,17 +195,26 @@ app.post('/admin/db/cleanup-soft-deletes', async (req, res, next) => {
       return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
     }
 
-    const retentionDays = parseInt(req.query.retention_days as string || '30', 10);
-    if (retentionDays < 1) {
-      return res.status(400).json({ error: 'retention_days must be >= 1', code: 'VALIDATION_ERROR' });
+    // Enhanced validation for retention days
+    const retentionDaysInput = req.query.retention_days as string || '30';
+    const retentionDays = parseInt(retentionDaysInput, 10);
+    
+    // Validate retention_days is a positive integer between 1 and 365
+    if (isNaN(retentionDays) || retentionDays < 1 || retentionDays > 365) {
+      return res.status(400).json({ 
+        error: 'retention_days must be a valid number between 1 and 365', 
+        code: 'VALIDATION_ERROR' 
+      });
     }
 
     const tables = ['users', 'items', 'documents', 'folders'];
     const results: Record<string, number> = {};
 
     for (const table of tables) {
+      // Use parameterized query to prevent SQL injection
       const r = await dbQuery(
-        `DELETE FROM ${table} WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '${retentionDays} days'`
+        `DELETE FROM ${table} WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL $1`,
+        [`${retentionDays} days`]
       );
       results[table] = r.rowCount || 0;
     }

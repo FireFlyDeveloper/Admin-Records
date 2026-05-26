@@ -41,9 +41,24 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
 export async function postUser(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const { email, display_name, password, is_active, role_ids } = req.body;
+    
+    // Enhanced validation
     if (!email || !display_name || !password) {
       throw new ValidationError('email, display_name, and password are required');
     }
+
+    // Validate email format
+    const emailValidation = require('../middleware/security').validateEmail(email);
+    if (!emailValidation.isValid) {
+      throw new ValidationError(emailValidation.errors.join(', '));
+    }
+
+    // Validate password strength
+    const passwordValidation = require('../middleware/security').validatePassword(password);
+    if (!passwordValidation.isValid) {
+      throw new ValidationError(passwordValidation.errors.join(', '));
+    }
+
     const user = await createUser({ email, display_name, password, is_active, role_ids });
     res.status(201).json({ user });
   } catch (err) {

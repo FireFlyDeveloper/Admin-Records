@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { User } from '@/types/auth'
 
 interface PermissionEditorProps {
   type: 'document' | 'folder'
@@ -183,8 +184,8 @@ export function PermissionEditor({ type, id }: PermissionEditorProps) {
             >
               <option value="">Select user...</option>
               {usersQuery.data?.users
-                ?.filter((user: any) => !excludedUserIds.has(user.id))
-                .map((user: any) => (
+                ?.filter((user: User) => !excludedUserIds.has(user.id))
+                .map((user: User) => (
                 <option key={user.id} value={user.id}>
                   {user.display_name} ({user.email})
                 </option>

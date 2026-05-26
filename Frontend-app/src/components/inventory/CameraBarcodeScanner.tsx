@@ -19,6 +19,7 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
   const [cameraError, setCameraError] = useState<string | null>(null);
   const scannerRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(true);
+  const containerIdRef = useRef('barcode-scanner-container-' + Date.now());
 
   // Component mount/unmount
   useEffect(() => {
@@ -29,22 +30,6 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
       cleanupScanner();
     };
   }, []);
-
-  // Handle scanner lifecycle
-  useEffect(() => {
-    if (open) {
-      // Delay initialization to ensure DOM is ready
-      const timer = setTimeout(() => {
-        if (isMountedRef.current && open) {
-          initializeScanner();
-        }
-      }, 300); // Increased delay for modal animation
-      
-      return () => clearTimeout(timer);
-    } else {
-      cleanupScanner();
-    }
-  }, [open]);
 
   const cleanupScanner = () => {
     if (cleanupInProgress) {
@@ -113,7 +98,7 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
     
     // Ensure container is empty and has proper dimensions
     container.innerHTML = '';
-    container.id = 'barcode-scanner-container-' + Date.now(); // Unique ID
+    container.id = containerIdRef.current;
     
     try {
       const { Html5QrcodeScanner } = await import('html5-qrcode');
@@ -128,7 +113,7 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
       };
 
       globalScannerInstance = new Html5QrcodeScanner(
-        container.id,
+        containerIdRef.current,
         config,
         false // verbose = false
       );
@@ -198,6 +183,22 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
     }
   };
 
+  // Handle scanner lifecycle
+  useEffect(() => {
+    if (open) {
+      // Delay initialization to ensure DOM is ready
+      const timer = setTimeout(() => {
+        if (isMountedRef.current && open) {
+          initializeScanner();
+        }
+      }, 300); // Increased delay for modal animation
+      
+      return () => clearTimeout(timer);
+    } else {
+      cleanupScanner();
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -215,7 +216,7 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
           {/* Scanner container - completely empty */}
           <div className="relative rounded-lg border bg-black overflow-hidden min-h-[300px]">
             <div 
-              id="barcode-scanner-container"
+              id={containerIdRef.current}
               ref={scannerRef}
               className="min-h-[300px] w-full"
             />

@@ -4,6 +4,7 @@ import { SafeUser } from '../types';
 import { verifyPassword } from '../utils/password';
 import { signToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { UnauthorizedError } from '../utils/errors';
+import { isAccountLocked, recordFailedLogin, recordSuccessfulLogin } from '../middleware/security';
 
 export async function login(req: Request, res: Response, next: NextFunction) {
   try {
@@ -12,15 +13,27 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       throw new UnauthorizedError('Email and password required');
     }
 
+    // Check if account is locked
+    const lockCheck = isAccountLocked(email);
+    if (lockCheck.locked) {
+      res.setHeader('Retry-After', lockCheck.retryAfter!.toString());
+      throw new UnauthorizedError(`Account temporarily locked due to too many failed attempts. Try again in ${lockCheck.retryAfter} seconds.`);
+    }
+
     const user = await getUserByEmail(email);
     if (!user) {
+      recordFailedLogin(email);
       throw new UnauthorizedError('Invalid credentials');
     }
 
     const valid = await verifyPassword(password, user.password_hash);
     if (!valid) {
+      recordFailedLogin(email);
       throw new UnauthorizedError('Invalid credentials');
     }
+
+    // Reset failed attempts on successful login
+    recordSuccessfulLogin(email);
 
     // Fetch user with roles
     const userWithRoles = await getUserById(user.id);

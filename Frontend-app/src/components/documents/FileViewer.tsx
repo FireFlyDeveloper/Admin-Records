@@ -41,12 +41,18 @@ export function FileViewer({ open, onOpenChange, document: doc }: FileViewerProp
     }
   }, [])
 
+  // Reset state when dialog closes or document changes
   useEffect(() => {
     if (!open || !doc) {
       setBlobUrl(null)
       setDocxHtml(null)
       setError(null)
       setLoading(false)
+    }
+  }, [open, doc])
+
+  useEffect(() => {
+    if (!open || !doc) {
       return
     }
 

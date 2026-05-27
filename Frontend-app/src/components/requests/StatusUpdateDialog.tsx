@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { CheckoutStatus } from '@/types/inventory';
-import { Loader2, AlertCircle, CheckCircle, XCircle, Clock, Package, Truck, Home } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, XCircle, Clock, Package, Home } from 'lucide-react';
 
 interface StatusUpdateDialogProps {
   checkoutId: string;
@@ -86,6 +86,8 @@ export function StatusUpdateDialog({
   const [adminNotes, setAdminNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  void checkoutId; // Mark as intentionally unused
 
   const handleSubmit = async () => {
     if (selectedStatus === currentStatus) {

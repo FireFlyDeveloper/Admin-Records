@@ -226,7 +226,7 @@ export function UsersPage() {
             <div className="overflow-x-auto -mx-3 sm:-mx-0">
               <div className="min-w-0 space-y-2 px-3 sm:px-0">
 {users.map((user: ManagedUser) => {
-                   const { status: userStatus, label, isLoading } = useRealTimeUserStatus(user.id)
+                   const { label, isLoading, isOnline, isOffline } = useRealTimeUserStatus(user.id)
                    return (
                     <div key={user.id} className="flex items-center justify-between rounded-lg border p-2 sm:p-3 hover:bg-accent/50 transition-colors">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -250,7 +250,7 @@ export function UsersPage() {
                           ))}
                           {user.roles.length === 0 && <Badge variant="outline" className="text-xs">No roles</Badge>}
                         </div>
-                        <div className={`h-2 w-2 rounded-full shrink-0 ${isLoading ? 'bg-gray-300' : userStatus === 'online' ? 'bg-green-500' : userStatus === 'offline' ? 'bg-red-500' : 'bg-orange-500'}`} title={isLoading ? 'Loading...' : label} />
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${isLoading ? 'bg-gray-300' : isOnline ? 'bg-green-500' : isOffline ? 'bg-red-500' : 'bg-orange-500'}`} title={isLoading ? 'Loading...' : label} />
                         <Button variant="ghost" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0" onClick={() => openEdit(user)}>
                           <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>

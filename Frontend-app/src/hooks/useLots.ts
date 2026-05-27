@@ -38,7 +38,7 @@ export function useUpdateLot() {
   return useMutation({
     mutationFn: ({ lotId, data }: { lotId: string; data: UpdateLotInput }) =>
       inventoryApi.updateLot(lotId, data).then((res) => res.data.lot),
-    onSuccess: (lot) => {
+    onSuccess: () => {
       // Invalidate the lots query for the item
       queryClient.invalidateQueries({ queryKey: ['lots'] })
       addToast({ message: 'Lot updated successfully', type: 'success' })

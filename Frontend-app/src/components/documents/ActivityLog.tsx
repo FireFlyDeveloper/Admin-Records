@@ -19,7 +19,7 @@ const actionIcons: Record<string, React.ReactNode> = {
 }
 
 export function ActivityLog({ documentId }: ActivityLogProps) {
-  const { data: activities, isLoading } = useDocumentActivity(documentId)
+  const { data: activities, isLoading } = useDocumentActivity(documentId ?? '')
 
   if (isLoading) {
     return (

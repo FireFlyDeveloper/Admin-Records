@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { useFolders, useCreateFolder } from '@/hooks/useFolders'
 import { useDocuments, useSearchDocuments, useDeleteDocument, useRenameDocument } from '@/hooks/useDocuments'
-import { DocumentFile } from '@/types/document'
+import { DocumentFile, Folder } from '@/types/document'
 import { formatFileSize, formatDate } from '@/lib/utils'
 
 export function DocumentManagerPage() {
@@ -47,8 +47,8 @@ export function DocumentManagerPage() {
   const displayDocuments = isSearching ? (searchResults || []) : (documents || [])
   const displayLoading = isSearching ? searchLoading : documentsLoading
 
-  const selectedFolder = folders?.find((f) => f.id === selectedFolderId)
-  const selectedDocument = displayDocuments?.find((d) => d.id === selectedDocumentId)
+  const selectedFolder = folders?.find((f: Folder) => f.id === selectedFolderId)
+  const selectedDocument = displayDocuments?.find((d: DocumentFile) => d.id === selectedDocumentId)
 
   function mimeLabel(mime: string): string {
     const map: Record<string, string> = {

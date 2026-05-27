@@ -52,7 +52,7 @@ export function FileUploadZone({ folderId }: FileUploadZoneProps) {
           // Check for duplicates first
           const duplicateCheck = await checkDuplicate.mutateAsync({
             folderId,
-            name: file.name,
+            filename: file.name,
           }).catch(() => ({ exists: false }))
 
           if (duplicateCheck.exists) {

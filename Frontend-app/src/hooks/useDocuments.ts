@@ -114,13 +114,39 @@ export function useDownloadDocument() {
   })
 }
 
-export function useCheckDocumentExists() {
+export function useCheckDuplicate() {
   return useMutation({
     mutationFn: async (data: { folderId: string | null; filename: string }) => {
-      const response = await documentsApi.checkDocumentExists(data.folderId, data.filename)
-      return response.data
+      const response = await documentsApi.checkDuplicate(data.folderId, data.filename)
+      return response
     },
   })
+}
+
+export function useSearchDocuments(searchQuery: string, enabled = true) {
+  return useQuery({
+    queryKey: ['documents-search', searchQuery],
+    queryFn: () => documentsApi.searchDocuments(searchQuery).then((res) => res.data),
+    enabled: enabled && !!searchQuery,
+  })
+}
+
+export function useRenameDocument() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const response = await documentsApi.renameDocument(id, name)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+    },
+  })
+}
+
+// Alias for backward compatibility
+export function useCheckDocumentExists() {
+  return useCheckDuplicate()
 }
 
 export function useDeleteDocument() {

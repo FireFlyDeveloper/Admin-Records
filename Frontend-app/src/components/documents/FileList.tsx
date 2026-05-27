@@ -105,7 +105,7 @@ export function FileList({ documents, isLoading, selectedDocumentId, onSelectDoc
               className="h-8 w-8"
               onClick={(e) => {
                 e.stopPropagation()
-                download.mutate({ id: doc.id, filename: doc.name })
+                download.mutate(doc.id)
               }}
               disabled={download.isPending}
               title="Download"

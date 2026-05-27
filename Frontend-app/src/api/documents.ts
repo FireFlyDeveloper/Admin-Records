@@ -1,6 +1,23 @@
 import api from './client'
 import { Folder, DocumentFile, DocumentVersion, ActivityLogEntry, Permission, CreateFolderInput, UpdateFolderInput } from '@/types/document'
 
+// Export OnlyOfficeConfig type
+export type OnlyOfficeConfig = {
+  config: {
+    document: { fileType: string; key: string; title: string; url: string }
+    documentType: string
+    editorConfig: {
+      callbackUrl: string
+      user: { id: string; name: string }
+    }
+    height: string
+    token: string
+    type: string
+    width: string
+  }
+  documentServerUrl: string
+}
+
 export const documentsApi = {
   // Folders
   getFolders: () => api.get<{ folders: Folder[] }>('/folders').then(r => ({ data: r.data.folders })),
@@ -27,6 +44,12 @@ export const documentsApi = {
       '/documents/check-duplicate',
       { params: { folder_id: folderId || '', name } }
     ).then(r => r.data),
+
+  checkDocumentExists: (folderId: string | null, name: string) =>
+    api.get<{ exists: boolean; document?: { id: string; name: string; size_bytes: number; updated_at: string } }>(
+      '/documents/check-duplicate',
+      { params: { folder_id: folderId || '', name } }
+    ),
 
   uploadDocument: (folderId: string | null, file: File, conflict?: 'replace' | 'duplicate', onProgress?: (progress: number) => void) => {
     const formData = new FormData()

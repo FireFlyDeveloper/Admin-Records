@@ -13,7 +13,7 @@ export function UserStatusIndicator({
   size = 'md',
   className = '',
 }: UserStatusIndicatorProps) {
-  const { icon, label, isLoading, color, isOnline, isOffline, isInactive } = useRealTimeUserStatus(userId);
+  const { icon, label, isLoading, isOnline, isOffline, isInactive } = useRealTimeUserStatus(userId);
 
   const sizeClasses = {
     sm: 'h-2 w-2',
@@ -69,7 +69,7 @@ export function UserStatusBadge({
   variant = 'default',
   className = '',
 }: UserStatusBadgeProps) {
-  const { icon, label, isLoading, color, isOnline, isOffline, isInactive } = useRealTimeUserStatus(userId);
+  const { icon, label, isLoading, isOnline, isOffline, isInactive } = useRealTimeUserStatus(userId);
 
   if (isLoading) {
     return (

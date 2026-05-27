@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryApi } from '@/api/inventory'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
-import { CheckoutInput, ReturnInput, CheckoutTransaction } from '@/types/inventory'
+import { CheckoutInput, ReturnInput } from '@/types/inventory'
 import { mapBackendStatusToFrontend, mapFrontendStatusToBackend } from '@/lib/statusMapping'
 
 export function useCheckouts(filters?: { status?: string; user_id?: string; item_id?: string }) {

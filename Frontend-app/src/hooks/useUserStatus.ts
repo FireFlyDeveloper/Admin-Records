@@ -185,7 +185,7 @@ export function useRealTimeUserStatus(userId?: string) {
 
 // --- Hook to update user activity periodically ---
 
-export function usePeriodicActivityUpdate(intervalMs = 60000) {
+export function usePeriodicActivityUpdate() {
   const updateUserActivity = useUpdateUserActivity();
   const sessionToken = useAuthStore.getState().getSessionToken();
   

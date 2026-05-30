@@ -49,8 +49,23 @@ export function sanitizeInputs(req: Request, res: Response, next: NextFunction) 
   };
 
   if (req.body) req.body = sanitizeObject(req.body);
-  if (req.query) req.query = sanitizeObject(req.query);
-  if (req.params) req.params = sanitizeObject(req.params);
+  
+  // req.query and req.params are read-only in Express, create sanitized copies
+  if (req.query && Object.keys(req.query).length > 0) {
+    // Create a new object with sanitized values and assign to req.query (works as a setter)
+    const sanitizedQuery = sanitizeObject(req.query);
+    // Copy sanitized values back to req.query by setting each property
+    Object.keys(sanitizedQuery).forEach(key => {
+      (req as any).query[key] = sanitizedQuery[key];
+    });
+  }
+  
+  if (req.params && Object.keys(req.params).length > 0) {
+    const sanitizedParams = sanitizeObject(req.params);
+    Object.keys(sanitizedParams).forEach(key => {
+      (req as any).params[key] = sanitizedParams[key];
+    });
+  }
 
   next();
 }

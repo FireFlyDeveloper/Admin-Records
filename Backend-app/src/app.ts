@@ -61,12 +61,21 @@ app.use(cors({
     if (config.nodeEnv === 'development') {
       callback(null, true);
     } else {
-      // In production, only allow specific origins
-      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
-      if (!origin || allowedOrigins.includes(origin)) {
+      // In production, use ALLOWED_ORIGINS or config.corsOrigins
+      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || config.corsOrigins;
+      
+      // Handle RegExp and string origins
+      if (!origin) {
+        // No origin (e.g., curl, wget) - allow but log
+        console.log('CORS: No origin provided, allowing');
+        callback(null, true);
+      } else if (allowedOrigins.some(allowed => 
+        allowed instanceof RegExp ? allowed.test(origin) : allowed === origin
+      )) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        console.log(`CORS: Origin not allowed: ${origin}`);
+        callback(null, false); // Use null instead of Error for CORS to work
       }
     }
   },

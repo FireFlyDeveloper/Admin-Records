@@ -31,6 +31,7 @@ import {
   listDocumentActivity,
   getStoragePath,
   ensureStorageDir,
+  safeMoveFile,
   searchDocuments,
 } from '../services/documentService'
 import { uploadDocumentsBatch } from '../services/batchDocumentService'
@@ -208,7 +209,7 @@ export async function uploadDocument(req: AuthRequest, res: Response, next: Next
     const ext = path.extname(file.originalname);
     const storageName = `${uuidv4()}${ext}`;
     const destPath = path.join(getStoragePath(), storageName);
-    fs.renameSync(file.path, destPath);
+    safeMoveFile(file.path, destPath);
 
     const document = await createDocument({
       name: file.originalname,
@@ -322,7 +323,7 @@ export async function reuploadDocumentVersion(req: AuthRequest, res: Response, n
     const ext = path.extname(file.originalname);
     const storageName = `${uuidv4()}${ext}`;
     const destPath = path.join(getStoragePath(), storageName);
-    fs.renameSync(file.path, destPath);
+    safeMoveFile(file.path, destPath);
 
     // Save old version to document_versions
     await createDocumentVersion({

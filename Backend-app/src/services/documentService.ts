@@ -511,3 +511,20 @@ export function ensureStorageDir(): void {
     fs.mkdirSync(dir, { recursive: true });
   }
 }
+
+/**
+ * Move a file across filesystem boundaries.
+ * Uses rename (atomic) when on same device, falls back to copy+delete for cross-device (Docker volumes).
+ */
+export function safeMoveFile(src: string, dest: string): void {
+  try {
+    fs.renameSync(src, dest);
+  } catch (err: any) {
+    if (err.code === 'EXDEV') {
+      fs.copyFileSync(src, dest);
+      fs.unlinkSync(src);
+    } else {
+      throw err;
+    }
+  }
+}

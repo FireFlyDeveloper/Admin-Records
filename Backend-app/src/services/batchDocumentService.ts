@@ -2,7 +2,7 @@ import { query, withTransaction } from '../utils/db';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
-import { getStoragePath, ensureStorageDir } from './documentService';
+import { getStoragePath, ensureStorageDir, safeMoveFile } from './documentService';
 import { Document } from '../types';
 
 export async function uploadDocumentsBatch(
@@ -23,7 +23,7 @@ export async function uploadDocumentsBatch(
         const destPath = path.join(getStoragePath(), storageName);
         
         // Move uploaded file to storage
-        fs.renameSync(file.path, destPath);
+        safeMoveFile(file.path, destPath);
         
         const docName = file.originalname;
         let finalName = docName;

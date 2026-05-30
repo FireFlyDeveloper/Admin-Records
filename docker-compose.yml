@@ -1,41 +1,66 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: admin-records-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: admin_records
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./Backend-app/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d admin_records"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: admin-records-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
-    build:
-      context: ./Backend-app
-      dockerfile: Dockerfile
-    image: backend-app:latest
+    build: ./Backend-app
     container_name: admin-records-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://admin:admin123@postgres:5432/admin_records
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: change-me-in-production
+      JWT_REFRESH_SECRET: change-me-too
+      PORT: "3000"
+      WS_PORT: "3001"
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - backend_uploads:/app/uploads
     ports:
       - "3000:3000"
       - "3001:3001"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=/app/storage/admin_records.db
-    volumes:
-      - backend-storage:/app/storage
-      - ./Backend-app/.env.production:/app/.env.production:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   frontend:
-    build:
-      context: ./Frontend-app
-      dockerfile: Dockerfile
-    image: frontend-app:latest
+    build: ./Frontend-app
     container_name: admin-records-frontend
-    ports:
-      - "80:80"
+    restart: unless-stopped
     depends_on:
       - backend
-    restart: unless-stopped
+    ports:
+      - "80:80"
 
 volumes:
-  backend-storage:
-    driver: local
+  postgres_data:
+  backend_uploads:

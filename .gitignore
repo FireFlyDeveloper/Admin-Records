@@ -22,3 +22,13 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Archived clutter
+archive/
+
+# Backend generated
+Backend-app/archive/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+*.tsbuildinfo

@@ -26,7 +26,13 @@ import {
 } from '../controllers/documentController';
 import { authenticate } from '../middleware/auth';
 
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ 
+  dest: process.env.UPLOAD_DIR || '/app/uploads/',
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB
+    files: 1
+  }
+});
 const router = Router();
 
 router.use(authenticate);

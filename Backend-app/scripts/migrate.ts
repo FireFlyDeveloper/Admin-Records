@@ -3,7 +3,7 @@ import path from 'path';
 import { PoolClient } from 'pg';
 import pool from '../utils/db';
 
-const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
+const MIGRATIONS_DIR = '/app/dist/migrations';
 
 interface MigrationFile {
   name: string;
@@ -40,7 +40,7 @@ function listMigrationFiles(): MigrationFile[] {
   if (!fs.existsSync(MIGRATIONS_DIR)) return [];
   const files = fs
     .readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'))
+    .filter((f) => f.endsWith('.js') && !f.endsWith('.d.js'))
     .map((f) => {
       const timestamp = f.match(/^(\d{14})_/)?.[1] ?? f;
       return { name: f, filepath: path.join(MIGRATIONS_DIR, f), timestamp };

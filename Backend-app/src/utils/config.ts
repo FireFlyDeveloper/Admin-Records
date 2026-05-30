@@ -39,6 +39,8 @@ get corsOrigins(): (string | RegExp)[] {
       /^http:\/\/127\.0\.0\.1(:\\d+)?$/,
       /^https:\/\/127\.0\.0\.1(:\\d+)?$/,
       // Allow frontend adminrecords domains
+      /^https?:\/\/adminrecords\.xyz(:\\d+)?$/,
+      /^https?:\/\/(www\.)?adminrecords\.xyz(:\\d+)?$/,
       /^https?:\/\/frontend\.adminrecords\.xyz(:\\d+)?$/,
       /^https?:\/\/testapi\.adminrecords\.xyz(:\\d+)?$/,
     ];

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/index.ts",
     "build": "tsc -p tsconfig.build.json && npm run build:scripts",
-    "build:scripts": "mkdir -p temp_scripts && tsc scripts/migrate.ts scripts/seed.ts scripts/migrationHelpers.ts --outDir . --target ES2022 --module commonjs --esModuleInterop --skipLibCheck --ignoreConfig && find . -maxdepth 1 -name '*.js' -exec mv {} dist/ \\; 2>/dev/null && rm -rf temp_scripts",
+    "build:scripts": "mkdir -p src/scripts && cp scripts/*.ts src/scripts/ && tsc -p tsconfig.build.json 2>/dev/null; mkdir -p dist/scripts && find dist/src/scripts -name \"*.js\" -exec mv {} dist/scripts/ \\; 2>/dev/null; rm -rf src/scripts",
     "start": "node dist/index.js",
     "migrate": "npm run build && node dist/scripts/migrate.js",
     "migrate:rollback": "npm run build && node dist/scripts/migrate.js rollback",

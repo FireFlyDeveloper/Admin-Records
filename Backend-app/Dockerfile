@@ -12,6 +12,7 @@ COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY migrations/ ./migrations/
 
+# Build everything (including scripts)
 RUN npx tsc -p tsconfig.build.json
 
 # Storage
@@ -19,5 +20,5 @@ RUN mkdir -p /app/storage
 
 EXPOSE 3000 3001
 
-# Run migrations then start
-CMD sh -c "npx ts-node scripts/migrate.ts && node dist/index.js"
+# Run migrations, seed, then start (using compiled JavaScript)
+CMD sh -c "node dist/scripts/migrate.js && node dist/scripts/seed.js && node dist/index.js"

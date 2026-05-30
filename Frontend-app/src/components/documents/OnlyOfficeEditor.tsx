@@ -55,7 +55,7 @@ export function OnlyOfficeEditor({ docId, onClose }: OnlyOfficeEditorProps) {
           <DocumentEditor
             id="onlyoffice-editor"
             documentServerUrl={documentServerUrl}
-            config={config}
+            config={config as any}
             onLoadComponentError={handleLoadComponentError}
             height="100%"
             width="100%"

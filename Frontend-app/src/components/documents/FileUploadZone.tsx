@@ -1,15 +1,7 @@
 import { useState, useCallback } from 'react'
-import { Upload, Loader2, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
+import { Upload, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUploadDocuments, useCheckDuplicate } from '@/hooks/useDocuments'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
 interface FileUploadZoneProps {
@@ -25,7 +17,6 @@ interface UploadResult {
 export function FileUploadZone({ folderId }: FileUploadZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadResults, setUploadResults] = useState<UploadResult[]>([])
-  const [conflictFile, setConflictFile] = useState<{ file: File; existingName: string } | null>(null)
   const [showResults, setShowResults] = useState(false)
   const upload = useUploadDocuments()
   const checkDuplicate = useCheckDuplicate()
@@ -39,55 +30,48 @@ export function FileUploadZone({ folderId }: FileUploadZoneProps) {
       setUploadResults(initialResults)
       setShowResults(true)
 
-      // Process each file
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        
-        // Update status to in progress
-        setUploadResults(prev => prev.map((r, idx) => 
-          idx === i ? { ...r, status: 'pending' as const, progress: 0 } : r
-        ))
-
-        try {
-          // Check for duplicates first
-          const duplicateCheck = await checkDuplicate.mutateAsync({
-            folderId,
-            filename: file.name,
-          }).catch(() => ({ exists: false }))
-
-          if (duplicateCheck.exists) {
-            // For now, auto-replace duplicates in batch mode
-            await upload.mutateAsync({
+      // Check all files for duplicates first
+      const duplicateChecks = await Promise.all(
+        files.map(async (file) => {
+          try {
+            const duplicateCheck = await checkDuplicate.mutateAsync({
               folderId,
-              files: [file],
-              conflict: 'replace',
-              onProgress: (_filename, progress) => {
-                setUploadResults(prev => prev.map((r, idx) => 
-                  idx === i ? { ...r, progress } : r
-                ))
-              },
+              filename: file.name,
             })
-          } else {
-            await upload.mutateAsync({
-              folderId,
-              files: [file],
-              conflict: undefined,
-              onProgress: (_filename, progress) => {
-                setUploadResults(prev => prev.map((r, idx) => 
-                  idx === i ? { ...r, progress } : r
-                ))
-              },
-            })
+            return { file, exists: duplicateCheck.exists }
+          } catch {
+            return { file, exists: false }
           }
-          
-          setUploadResults(prev => prev.map((r, idx) => 
-            idx === i ? { ...r, status: 'success' as const, progress: 100 } : r
-          ))
-        } catch {
-          setUploadResults(prev => prev.map((r, idx) => 
-            idx === i ? { ...r, status: 'error' as const } : r
-          ))
-        }
+        })
+      )
+
+      // Separate files with and without duplicates
+      const filesWithDuplicates = duplicateChecks.filter(c => c.exists).map(c => c.file)
+      const filesWithoutDuplicates = duplicateChecks.filter(c => !c.exists).map(c => c.file)
+
+      // Upload all files at once using batch endpoint
+      try {
+        await upload.mutateAsync({
+          folderId,
+          files: [...filesWithoutDuplicates, ...filesWithDuplicates], // All files
+          conflict: 'replace', // Auto-replace duplicates
+          onProgress: (filename, progress) => {
+            // Update progress for all files
+            setUploadResults(prev => prev.map(r => 
+              ({ ...r, progress })
+            ))
+          },
+        })
+
+        // Mark all as successful
+        setUploadResults(prev => prev.map(r => 
+          ({ ...r, status: 'success' as const, progress: 100 })
+        ))
+      } catch {
+        // Mark all as failed
+        setUploadResults(prev => prev.map(r => 
+          ({ ...r, status: 'error' as const })
+        ))
       }
     },
     [folderId, upload, checkDuplicate]
@@ -205,48 +189,6 @@ export function FileUploadZone({ folderId }: FileUploadZoneProps) {
           )}
         </div>
       )}
-
-      {/* Conflict Dialog */}
-      <Dialog open={!!conflictFile} onOpenChange={(open) => !open && setConflictFile(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              File Already Exists
-            </DialogTitle>
-            <DialogDescription>
-              A file named <strong>{conflictFile?.existingName}</strong> already exists in this folder.
-              What would you like to do?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center gap-3 rounded-lg border bg-muted/50 p-3 text-sm">
-            <AlertTriangle className="h-8 w-8 text-amber-500 shrink-0" />
-            <div>
-              <p className="font-medium">{conflictFile?.existingName}</p>
-              <p className="text-xs text-muted-foreground">
-                Replace will overwrite the existing file. Keep Both will upload as a new copy.
-              </p>
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setConflictFile(null)}>
-              Cancel
-            </Button>
-            <Button variant="secondary" onClick={() => {
-              // Handle keep both
-              setConflictFile(null)
-            }}>
-              Keep Both
-            </Button>
-            <Button variant="default" onClick={() => {
-              // Handle replace
-              setConflictFile(null)
-            }}>
-              Replace
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

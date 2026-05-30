@@ -1,5 +1,5 @@
-import { query } from '../utils/db';
-import { hashPassword } from '../utils/password';
+import { query } from '../src/utils/db';
+import { hashPassword } from '../src/utils/password';
 
 async function seed() {
   const existing = await query(`SELECT id FROM users WHERE email = 'admin@local' AND deleted_at IS NULL`);

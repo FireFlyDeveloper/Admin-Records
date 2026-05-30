@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { PoolClient } from 'pg';
-import pool from '../utils/db';
+import pool from '../src/utils/db';
 
 const MIGRATIONS_DIR = '/app/dist/migrations';
 

@@ -1,6 +1,13 @@
 import api from './client'
 import { Folder, DocumentFile, DocumentVersion, ActivityLogEntry, Permission, CreateFolderInput, UpdateFolderInput } from '@/types/document'
 
+export interface FolderTreeNode extends Folder {
+  children?: FolderTreeNode[]
+  expanded?: boolean
+  depth?: number
+  path?: Folder[]
+}
+
 // Export OnlyOfficeConfig type
 export type OnlyOfficeConfig = {
   config: {
@@ -23,6 +30,10 @@ export const documentsApi = {
   getFolders: () => api.get<{ folders: Folder[] }>('/folders').then(r => ({ data: r.data.folders })),
 
   getFolder: (id: string) => api.get<{ folder: Folder }>(`/folders/${id}`).then(r => ({ data: r.data.folder })),
+
+  getFolderTree: () => api.get<{ tree: FolderTreeNode[] }>('/folders/tree').then(r => ({ data: r.data.tree })),
+
+  getFolderPath: (id: string) => api.get<{ path: Folder[] }>(`/folders/${id}/path`).then(r => ({ data: r.data.path })),
 
   createFolder: (data: CreateFolderInput) =>
     api.post<{ folder: Folder }>('/folders', data).then(r => ({ data: r.data.folder })),

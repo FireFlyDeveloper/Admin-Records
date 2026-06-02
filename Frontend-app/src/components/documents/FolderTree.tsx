@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Folder, FolderOpen, ChevronRight, ChevronDown, Pencil, Trash2, Shield } from 'lucide-react'
+import { Folder, FolderOpen, ChevronRight, ChevronDown, Pencil, Trash2, Shield, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Folder as FolderType } from '@/types/document'
+import { FolderTreeNode } from '@/api/documents'
 import {
   Dialog,
   DialogContent,
@@ -10,45 +10,51 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useUpdateFolder, useDeleteFolder } from '@/hooks/useFolders'
+import { useFolderTree, useToggleFolderExpansion } from '@/hooks/useFolderTree'
 import { PermissionEditor } from './PermissionEditor'
 
 interface FolderTreeProps {
-  folders: FolderType[]
   selectedFolderId: string | null
   onSelectFolder: (id: string | null) => void
+  showRoot?: boolean
+  maxDepth?: number
 }
 
 interface FolderNodeProps {
-  folder: FolderType
-  folders: FolderType[]
-  level: number
+  node: FolderTreeNode
   selectedFolderId: string | null
   onSelectFolder: (id: string | null) => void
+  onToggleExpansion: (id: string, expanded: boolean) => void
 }
 
-function FolderNode({ folder, folders, level, selectedFolderId, onSelectFolder }: FolderNodeProps) {
-  const [expanded, setExpanded] = useState(true)
+function FolderNode({ node, selectedFolderId, onSelectFolder, onToggleExpansion }: FolderNodeProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [editName, setEditName] = useState(folder.name)
+  const [editName, setEditName] = useState(node.name)
   const [showPermissions, setShowPermissions] = useState(false)
 
-  const children = folders.filter((f) => f.parent_id === folder.id)
-  const hasChildren = children.length > 0
-  const isSelected = selectedFolderId === folder.id
+  const hasChildren = node.children && node.children.length > 0
+  const isSelected = selectedFolderId === node.id
 
   const updateFolder = useUpdateFolder()
   const deleteFolder = useDeleteFolder()
 
   const handleRename = () => {
-    if (editName.trim() && editName !== folder.name) {
-      updateFolder.mutate({ id: folder.id, data: { name: editName.trim() } })
+    if (editName.trim() && editName !== node.name) {
+      updateFolder.mutate({ id: node.id, data: { name: editName.trim() } })
     }
     setIsEditing(false)
   }
 
   const handleDelete = () => {
     if (confirm('Are you sure you want to delete this folder?')) {
-      deleteFolder.mutate(folder.id)
+      deleteFolder.mutate(node.id)
+    }
+  }
+
+  const handleToggleExpansion = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (hasChildren) {
+      onToggleExpansion(node.id, !node.expanded)
     }
   }
 
@@ -61,19 +67,16 @@ function FolderNode({ folder, folders, level, selectedFolderId, onSelectFolder }
             ? 'bg-primary text-primary-foreground'
             : 'hover:bg-accent hover:text-accent-foreground'
         )}
-        style={{ paddingLeft: `${level * 12 + 8}px` }}
+        style={{ paddingLeft: `${(node.depth || 0) * 12 + 8}px` }}
       >
         <button
-          onClick={(e) => {
-            e.stopPropagation()
-            if (hasChildren) setExpanded(!expanded)
-          }}
+          onClick={handleToggleExpansion}
           className={cn(
             'p-0.5 rounded hover:bg-black/10',
             !hasChildren && 'invisible'
           )}
         >
-          {expanded ? (
+          {node.expanded ? (
             <ChevronDown className="h-3.5 w-3.5" />
           ) : (
             <ChevronRight className="h-3.5 w-3.5" />
@@ -82,7 +85,7 @@ function FolderNode({ folder, folders, level, selectedFolderId, onSelectFolder }
 
         <div
           className="flex items-center gap-2 flex-1 min-w-0"
-          onClick={() => onSelectFolder(folder.id)}
+          onClick={() => onSelectFolder(node.id)}
         >
           {isSelected ? (
             <FolderOpen className="h-4 w-4 shrink-0" />
@@ -97,7 +100,7 @@ function FolderNode({ folder, folders, level, selectedFolderId, onSelectFolder }
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleRename()
                 if (e.key === 'Escape') {
-                  setEditName(folder.name)
+                  setEditName(node.name)
                   setIsEditing(false)
                 }
               }}
@@ -106,7 +109,7 @@ function FolderNode({ folder, folders, level, selectedFolderId, onSelectFolder }
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="text-sm truncate">{folder.name}</span>
+            <span className="text-sm truncate">{node.name}</span>
           )}
         </div>
 
@@ -144,16 +147,15 @@ function FolderNode({ folder, folders, level, selectedFolderId, onSelectFolder }
         </div>
       </div>
 
-      {expanded && hasChildren && (
+      {node.expanded && hasChildren && (
         <div>
-          {children.map((child) => (
+          {node.children!.map((child) => (
             <FolderNode
               key={child.id}
-              folder={child}
-              folders={folders}
-              level={level + 1}
+              node={child}
               selectedFolderId={selectedFolderId}
               onSelectFolder={onSelectFolder}
+              onToggleExpansion={onToggleExpansion}
             />
           ))}
         </div>
@@ -162,11 +164,11 @@ function FolderNode({ folder, folders, level, selectedFolderId, onSelectFolder }
       <Dialog open={showPermissions} onOpenChange={setShowPermissions}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Folder Permissions: {folder.name}</DialogTitle>
+            <DialogTitle>Folder Permissions: {node.name}</DialogTitle>
           </DialogHeader>
           <PermissionEditor
             type="folder"
-            id={folder.id}
+            id={node.id}
             onClose={() => setShowPermissions(false)}
           />
         </DialogContent>
@@ -175,35 +177,74 @@ function FolderNode({ folder, folders, level, selectedFolderId, onSelectFolder }
   )
 }
 
-export function FolderTree({ folders, selectedFolderId, onSelectFolder }: FolderTreeProps) {
-  const rootFolders = folders.filter((f) => !f.parent_id)
+export function FolderTree({ 
+  selectedFolderId, 
+  onSelectFolder,
+  showRoot = true,
+  maxDepth 
+}: FolderTreeProps) {
+  const { data: tree, isLoading, error } = useFolderTree({
+    showRoot,
+    maxDepth,
+    initiallyExpanded: true,
+  })
+  const { mutate: toggleExpansion } = useToggleFolderExpansion()
+
+  const handleToggleExpansion = (id: string, expanded: boolean) => {
+    toggleExpansion({ id, expanded })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 text-sm text-destructive">
+        Error loading folder tree
+      </div>
+    )
+  }
+
+  if (!tree || tree.length === 0) {
+    return (
+      <div className="p-4 text-sm text-muted-foreground">
+        No folders found
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-0.5">
-      <div
-        className={cn(
-          'flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer transition-colors',
-          selectedFolderId === null
-            ? 'bg-primary text-primary-foreground'
-            : 'hover:bg-accent hover:text-accent-foreground'
-        )}
-        onClick={() => onSelectFolder(null)}
-      >
-        {selectedFolderId === null ? (
-          <FolderOpen className="h-4 w-4 shrink-0" />
-        ) : (
-          <Folder className="h-4 w-4 shrink-0" />
-        )}
-        <span className="text-sm font-medium">All Folders</span>
-      </div>
-      {rootFolders.map((folder) => (
+      {showRoot && (
+        <div
+          className={cn(
+            'flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer transition-colors',
+            selectedFolderId === null
+              ? 'bg-primary text-primary-foreground'
+              : 'hover:bg-accent hover:text-accent-foreground'
+          )}
+          onClick={() => onSelectFolder(null)}
+        >
+          {selectedFolderId === null ? (
+            <FolderOpen className="h-4 w-4 shrink-0" />
+          ) : (
+            <Folder className="h-4 w-4 shrink-0" />
+          )}
+          <span className="text-sm font-medium">All Folders</span>
+        </div>
+      )}
+      {tree.map((node) => (
         <FolderNode
-          key={folder.id}
-          folder={folder}
-          folders={folders}
-          level={0}
+          key={node.id}
+          node={node}
           selectedFolderId={selectedFolderId}
           onSelectFolder={onSelectFolder}
+          onToggleExpansion={handleToggleExpansion}
         />
       ))}
     </div>

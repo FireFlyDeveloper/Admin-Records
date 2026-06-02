@@ -132,15 +132,7 @@ export function DocumentManagerPage() {
         <div className="lg:col-span-1">
           <div className="rounded-lg border bg-card p-3 lg:p-4">
             <h3 className="text-sm font-semibold mb-3">Folders</h3>
-            {foldersLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-7 lg:h-8 bg-muted rounded animate-pulse" />
-                ))}
-              </div>
-            ) : (
-              <FolderTree
-                folders={folders || []}
+            <FolderTree
                 selectedFolderId={selectedFolderId}
                 onSelectFolder={(id) => {
                   setSelectedFolderId(id)
@@ -148,7 +140,6 @@ export function DocumentManagerPage() {
                   setSearchQuery('')
                 }}
               />
-            )}
           </div>
         </div>
 

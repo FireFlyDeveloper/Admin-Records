@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { FolderPlus, Search, Home, ChevronRight, FileText, Calendar, Clock, HardDrive, Hash, FolderOpen } from 'lucide-react'
+import { FolderPlus, Search, FileText, Calendar, Clock, HardDrive, Hash, FolderOpen } from 'lucide-react'
 import { PageShell } from '@/components/layout/PageShell'
 import { FolderTree } from '@/components/documents/FolderTree'
+import { CreateFolderDialog } from '@/components/documents/CreateFolderDialog'
 import { FileList } from '@/components/documents/FileList'
 import { FileViewer } from '@/components/documents/FileViewer'
 import { OnlyOfficeEditor } from '@/components/documents/OnlyOfficeEditor'
 import { Portal } from '@/components/ui/portal'
 import { FileUploadZone } from '@/components/documents/FileUploadZone'
 import { PermissionEditor } from '@/components/documents/PermissionEditor'
+import { FolderBreadcrumbs } from '@/components/documents/FolderBreadcrumbs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -18,8 +20,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { useFolders, useCreateFolder } from '@/hooks/useFolders'
+import { useFolders } from '@/hooks/useFolders'
 import { useDocuments, useSearchDocuments, useDeleteDocument, useRenameDocument } from '@/hooks/useDocuments'
+import { useFolderPath } from '@/hooks/useFolderTree'
 import { DocumentFile, Folder } from '@/types/document'
 import { formatFileSize, formatDate } from '@/lib/utils'
 
@@ -27,7 +30,6 @@ export function DocumentManagerPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
-  const [newFolderName, setNewFolderName] = useState('')
   const [showPermissions, setShowPermissions] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showRename, setShowRename] = useState(false)
@@ -39,7 +41,7 @@ export function DocumentManagerPage() {
   const { data: folders, isLoading: foldersLoading } = useFolders()
   const { data: documents, isLoading: documentsLoading } = useDocuments(selectedFolderId)
   const { data: searchResults, isLoading: searchLoading } = useSearchDocuments(searchQuery)
-  const createFolder = useCreateFolder()
+  const { data: folderPath } = useFolderPath(selectedFolderId)
   const deleteDocument = useDeleteDocument()
   const renameDocument = useRenameDocument()
 
@@ -48,6 +50,7 @@ export function DocumentManagerPage() {
   const displayLoading = isSearching ? searchLoading : documentsLoading
 
   const selectedFolder = folders?.find((f: Folder) => f.id === selectedFolderId)
+
   const selectedDocument = displayDocuments?.find((d: DocumentFile) => d.id === selectedDocumentId)
 
   function mimeLabel(mime: string): string {
@@ -72,22 +75,6 @@ export function DocumentManagerPage() {
     return map[mime] || mime
   }
 
-  const handleCreateFolder = () => {
-    if (!newFolderName.trim()) return
-    createFolder.mutate(
-      {
-        name: newFolderName.trim(),
-        parentId: selectedFolderId || undefined,
-      },
-      {
-        onSuccess: () => {
-          setNewFolderName('')
-          setShowNewFolder(false)
-        },
-      }
-    )
-  }
-
   const handleRename = () => {
     if (!selectedDocumentId || !renameValue.trim()) return
     renameDocument.mutate(
@@ -109,6 +96,12 @@ export function DocumentManagerPage() {
         setSelectedDocumentId(null)
       },
     })
+  }
+
+  const handleNavigate = (folderId: string | null) => {
+    setSelectedFolderId(folderId)
+    setSelectedDocumentId(null)
+    setSearchQuery('')
   }
 
   return (
@@ -146,31 +139,17 @@ export function DocumentManagerPage() {
         {/* Main Content Area */}
         <div className="lg:col-span-3 space-y-4">
           {/* Breadcrumbs */}
-          <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-            <button
-              onClick={() => {
-                setSelectedFolderId(null)
-                setSelectedDocumentId(null)
-                setSearchQuery('')
-              }}
-              className="flex items-center gap-1 hover:text-foreground transition-colors"
-            >
-              <Home className="h-3.5 w-3.5" />
-              <span>Home</span>
-            </button>
-            {!isSearching && selectedFolder && (
-              <>
-                <ChevronRight className="h-3.5 w-3.5" />
-                <span className="text-foreground font-medium">{selectedFolder.name}</span>
-              </>
-            )}
-            {isSearching && (
-              <>
-                <ChevronRight className="h-3.5 w-3.5" />
-                <span className="text-foreground font-medium">Search Results</span>
-              </>
-            )}
-          </nav>
+          {isSearching ? (
+            <nav className="flex items-center gap-1 text-sm text-muted-foreground">
+              <span className="text-foreground font-medium">Search Results</span>
+            </nav>
+          ) : (
+            <FolderBreadcrumbs
+              path={folderPath || []}
+              currentFolderId={selectedFolderId}
+              onNavigate={handleNavigate}
+            />
+          )}
 
           {!selectedFolderId && !isSearching ? (
             /* Home Directory View */
@@ -301,38 +280,11 @@ export function DocumentManagerPage() {
       </div>
 
       {/* New Folder Dialog */}
-      <Dialog open={showNewFolder} onOpenChange={setShowNewFolder}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <label className="text-sm font-medium">Folder Name</label>
-              <Input
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                placeholder="Enter folder name"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateFolder()
-                }}
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewFolder(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateFolder}
-              disabled={!newFolderName.trim() || createFolder.isPending}
-            >
-              {createFolder.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateFolderDialog
+        open={showNewFolder}
+        onOpenChange={setShowNewFolder}
+        defaultParentId={selectedFolderId}
+      />
 
       {/* Permissions Dialog */}
       <Dialog open={showPermissions} onOpenChange={setShowPermissions}>

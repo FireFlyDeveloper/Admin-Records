@@ -56,7 +56,7 @@ export interface Permission {
 
 export interface CreateFolderInput {
   name: string;
-  parentId?: string;
+  parentId?: string | null;
 }
 
 export interface UpdateFolderInput {

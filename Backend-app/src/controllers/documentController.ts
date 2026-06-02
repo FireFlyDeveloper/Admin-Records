@@ -34,8 +34,15 @@ import {
   safeMoveFile,
   searchDocuments,
 } from '../services/documentService'
+import {
+  getFolderTree,
+  getFolderPath,
+  validateFolderMove,
+  getVisibleFolderTree,
+  FolderWithChildren
+} from '../services/folderTreeService'
 import { uploadDocumentsBatch } from '../services/batchDocumentService'
-import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
+import { ForbiddenError, NotFoundError, ValidationError, ConflictError } from '../utils/errors';
 import { PermissionLevel } from '../types';
 
 function getUserContext(req: AuthRequest) {
@@ -54,6 +61,71 @@ export async function getFolders(req: AuthRequest, res: Response, next: NextFunc
     res.json({ folders });
   } catch (err) {
     next(err);
+  }
+}
+
+export async function getFolderTreeHandler(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const ctx = getUserContext(req);
+    const tree = await getVisibleFolderTree(ctx.userId, ctx.userRoles, ctx.isAdmin);
+    res.json({ tree });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getFolderPathHandler(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const ctx = getUserContext(req);
+    const folderId = req.params.id as string;
+    
+    // Check if user has permission to access this folder
+    const perm = await resolveFolderPermission(ctx.userId, ctx.userRoles, ctx.isAdmin, folderId);
+    if (!perm && !ctx.isAdmin) {
+      throw new ForbiddenError('No permission to access this folder');
+    }
+    
+    const path = await getFolderPath(folderId);
+    res.json({ path });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function validateFolderMoveHandler(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const ctx = getUserContext(req);
+    const { folderId, newParentId } = req.body;
+    
+    if (!folderId) {
+      throw new ValidationError('folderId is required');
+    }
+    
+    // Check permission on the folder being moved
+    const perm = await resolveFolderPermission(ctx.userId, ctx.userRoles, ctx.isAdmin, folderId);
+    if (!perm || (perm !== 'editor' && perm !== 'manager' && !ctx.isAdmin)) {
+      throw new ForbiddenError('Editor permission required on folder');
+    }
+    
+    // Check permission on new parent folder if provided
+    if (newParentId) {
+      const parentPerm = await resolveFolderPermission(ctx.userId, ctx.userRoles, ctx.isAdmin, newParentId);
+      if (!parentPerm || (parentPerm !== 'editor' && parentPerm !== 'manager' && !ctx.isAdmin)) {
+        throw new ForbiddenError('Editor permission required on new parent folder');
+      }
+    } else if (!ctx.isAdmin) {
+      // Only admins can move folders to root
+      throw new ForbiddenError('Only admins can move folders to root');
+    }
+    
+    await validateFolderMove(folderId, newParentId || null);
+    res.json({ valid: true, message: 'Folder move is valid' });
+  } catch (err) {
+    if (err instanceof ConflictError) {
+      res.status(409).json({ valid: false, error: err.message });
+    } else {
+      next(err);
+    }
   }
 }
 

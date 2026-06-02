@@ -24,13 +24,13 @@ export async function getFolderTree(): Promise<FolderWithChildren[]> {
 export async function getFolderPath(folderId: string): Promise<Folder[]> {
   const pathResult = await query<Folder>(
     `WITH RECURSIVE ancestor_path AS (
-      SELECT * FROM folders WHERE id = $1 AND deleted_at IS NULL
+      SELECT *, 0 as depth FROM folders WHERE id = $1 AND deleted_at IS NULL
       UNION
-      SELECT f.* FROM folders f
+      SELECT f.*, ap.depth + 1 as depth FROM folders f
       JOIN ancestor_path ap ON f.id = ap.parent_id
       WHERE f.deleted_at IS NULL
     )
-    SELECT * FROM ancestor_path ORDER BY parent_id NULLS FIRST`,
+    SELECT * FROM ancestor_path ORDER BY depth DESC`,
     [folderId]
   );
   
@@ -102,13 +102,13 @@ function buildTree(folders: FolderWithChildren[], parentId: string | null = null
 export async function getFolderDescendants(folderId: string): Promise<Folder[]> {
   const descendantsResult = await query(
     `WITH RECURSIVE descendants AS (
-      SELECT * FROM folders WHERE id = $1 AND deleted_at IS NULL
+      SELECT *, 0 as depth FROM folders WHERE id = $1 AND deleted_at IS NULL
       UNION
-      SELECT f.* FROM folders f
+      SELECT f.*, d.depth + 1 as depth FROM folders f
       INNER JOIN descendants d ON f.parent_id = d.id
       WHERE f.deleted_at IS NULL
     )
-    SELECT * FROM descendants ORDER BY name`,
+    SELECT * FROM descendants ORDER BY depth, name`,
     [folderId]
   );
   

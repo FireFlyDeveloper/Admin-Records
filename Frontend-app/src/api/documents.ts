@@ -56,11 +56,7 @@ export const documentsApi = {
       { params: { folder_id: folderId || '', name } }
     ).then(r => r.data),
 
-  checkDocumentExists: (folderId: string | null, name: string) =>
-    api.get<{ exists: boolean; document?: { id: string; name: string; size_bytes: number; updated_at: string } }>(
-      '/documents/check-duplicate',
-      { params: { folder_id: folderId || '', name } }
-    ),
+  
 
   uploadDocument: (folderId: string | null, file: File, conflict?: 'replace' | 'duplicate', onProgress?: (progress: number) => void) => {
     const formData = new FormData()

@@ -23,6 +23,9 @@ import {
   postFolderPermission,
   deleteFolderPermission,
   checkDocumentDuplicate,
+  getFolderTreeHandler,
+  getFolderPathHandler,
+  validateFolderMoveHandler,
 } from '../controllers/documentController';
 import { authenticate } from '../middleware/auth';
 
@@ -46,6 +49,11 @@ router.get('/folders/:id/documents', getFolderDocuments);
 router.get('/folders/:id/permissions', getFolderPermissions);
 router.post('/folders/:id/permissions', postFolderPermission);
 router.delete('/folders/:id/permissions/:pid', deleteFolderPermission);
+
+// Folder tree operations
+router.get('/folders/tree', getFolderTreeHandler);
+router.get('/folders/:id/path', getFolderPathHandler);
+router.post('/folders/validate-move', validateFolderMoveHandler);
 
 // Documents
 router.get('/documents', getAllDocuments);

@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { PermissionEditor } from './PermissionEditor';
+import { useUIStore } from '@/stores/uiStore';
 
 export interface FolderNodeProps {
   node: FolderTreeNode;
@@ -37,20 +38,33 @@ export function FolderNode({
   const [editName, setEditName] = useState(node.name);
   const [showPermissions, setShowPermissions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const addToast = useUIStore((state) => state.addToast);
 
   const hasChildren = node.children && node.children.length > 0;
   const isSelected = selectedFolderId === node.id;
 
   const handleRename = async () => {
     if (editName.trim() && editName !== node.name) {
-      await onRename(node.id, editName.trim());
+      try {
+        await onRename(node.id, editName.trim());
+        setIsEditing(false);
+      } catch (error) {
+        console.error('Rename failed:', error);
+        addToast({ message: 'Failed to rename folder', type: 'error' });
+      }
+    } else {
+      setIsEditing(false);
     }
-    setIsEditing(false);
   };
 
   const handleDelete = async () => {
-    await onDelete(node.id);
-    setShowDeleteConfirm(false);
+    try {
+      await onDelete(node.id);
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      console.error('Delete failed:', error);
+      addToast({ message: 'Failed to delete folder', type: 'error' });
+    }
   };
 
   const handleToggleExpansion = (e: React.MouseEvent) => {

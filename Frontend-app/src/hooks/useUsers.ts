@@ -12,18 +12,42 @@ export function useUsers(params?: {
 }) {
   return useQuery({
     queryKey: ['users', params],
-    queryFn: () => usersApi.getUsers(params),
+    queryFn: async () => {
+      try {
+        return await usersApi.getUsers(params)
+      } catch (error) {
+        console.error('Failed to fetch users:', error)
+        // Return default pagination result on error
+        return {
+          users: [],
+          total: 0,
+          page: params?.page ?? 1,
+          per_page: params?.per_page ?? 20,
+          total_pages: 0,
+        } as any
+      }
+    },
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
 }
 
 export function useRoles() {
   return useQuery({
     queryKey: ['roles'],
-    queryFn: () => usersApi.getRoles(),
+    queryFn: async () => {
+      try {
+        return await usersApi.getRoles()
+      } catch (error) {
+        console.error('Failed to fetch roles:', error)
+        return []
+      }
+    },
     staleTime: 5 * 60 * 1000,
     refetchInterval: 60 * 1000,
+    retry: 2,
   })
 }
 

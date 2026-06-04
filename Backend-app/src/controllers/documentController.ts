@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../utils/config';
-import { query } from '../utils/db';
+import { query, withTransaction } from '../utils/db';
 import {
   listVisibleFolders,
   createFolder,
@@ -174,9 +174,23 @@ export async function patchFolder(req: AuthRequest, res: Response, next: NextFun
       folder = await moveFolder(folderId, parent_id || null);
       await logActivity({ folder_id: folder.id, actor_id: ctx.userId, action: 'move', metadata: { parent_id } });
     } else if (hasName && hasParent) {
-      await renameFolder(folderId, name);
-      folder = await moveFolder(folderId, parent_id || null);
-      await logActivity({ folder_id: folder.id, actor_id: ctx.userId, action: 'move', metadata: { name, parent_id } });
+      // Use transaction to ensure both rename and move are atomic
+      folder = await withTransaction(async (client) => {
+        const renamed = await client.query(
+          `UPDATE folders SET name = $1, updated_at = now() WHERE id = $2 AND deleted_at IS NULL RETURNING *`,
+          [name, folderId]
+        );
+        if (renamed.rows.length === 0) throw new NotFoundError('Folder not found');
+
+        const moved = await client.query(
+          `UPDATE folders SET parent_id = $1, updated_at = now() WHERE id = $2 AND deleted_at IS NULL RETURNING *`,
+          [parent_id || null, folderId]
+        );
+        if (moved.rows.length === 0) throw new NotFoundError('Folder not found');
+
+        await logActivity({ folder_id: folderId, actor_id: ctx.userId, action: 'move', metadata: { name, parent_id } });
+        return moved.rows[0];
+      });
     } else {
       throw new ValidationError('No valid fields to update');
     }

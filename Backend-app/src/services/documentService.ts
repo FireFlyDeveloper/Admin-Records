@@ -195,7 +195,7 @@ export async function moveFolder(id: string, parent_id: string | null): Promise<
     let current: string | null = parent_id;
     while (current) {
       if (current === id) throw new ConflictError('Cannot move folder into itself or its descendants');
-      const r: any = await query(`SELECT parent_id FROM folders WHERE id = $1`, [current]);
+      const r: any = await query(`SELECT parent_id FROM folders WHERE id = $1 AND deleted_at IS NULL`, [current]);
       current = r.rows.length ? r.rows[0].parent_id : null;
     }
   }

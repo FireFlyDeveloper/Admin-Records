@@ -153,6 +153,15 @@ export interface Item {
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
+  // Expiration tracking fields (computed from lots)
+  earliest_expiration?: Date | null;
+  latest_expiration?: Date | null;
+  has_expired_stock?: boolean;
+  has_expiring_soon?: boolean;
+  has_healthy_stock?: boolean;
+  has_non_expiring?: boolean;
+  aggregate_expiration_status?: 'expired' | 'no_stock' | 'healthy' | 'expiring_soon' | 'expiring_month' | 'unknown';
+  total_stocks?: number;
 }
 
 export interface ItemLot {

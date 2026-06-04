@@ -160,7 +160,7 @@ export function AdminPage() {
             </div>
           ) : users.length > 0 ? (
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-              {users.slice(0, 10).map((user) => (
+              {users.slice(0, 10).map((user: any) => (
                 <div
                   key={user.id}
                   className="flex items-center justify-between rounded-lg border p-3"

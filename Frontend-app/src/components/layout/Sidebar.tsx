@@ -222,17 +222,30 @@ export function Sidebar() {
                   <span className={cn('flex-1', !sidebarOpen && 'lg:hidden')}>
                     {item.label}
                   </span>
-                  {badgeCount !== undefined && badgeCount > 0 && sidebarOpen && (
-                    <span className={cn(
-                      'min-w-[20px] h-5 rounded-full flex items-center justify-center text-[10px] font-bold px-1.5',
-                      item.badge === 'pending' ? 'bg-amber-100 text-amber-800' :
-                      item.badge === 'missing' ? 'bg-red-100 text-red-800' :
-                      item.badge === 'expiring' ? 'bg-orange-100 text-orange-800' :
-                      item.badge === 'alert' ? 'bg-purple-100 text-purple-800' :
-                      'bg-blue-100 text-blue-800'
-                    )}>
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </span>
+                  {badgeCount !== undefined && badgeCount > 0 && (
+                    sidebarOpen ? (
+                      <span className={cn(
+                        'min-w-[20px] h-5 rounded-full flex items-center justify-center text-[10px] font-bold px-1.5',
+                        item.badge === 'pending' ? 'bg-amber-100 text-amber-800' :
+                        item.badge === 'missing' ? 'bg-red-100 text-red-800' :
+                        item.badge === 'expiring' ? 'bg-orange-100 text-orange-800' :
+                        item.badge === 'alert' ? 'bg-purple-100 text-purple-800' :
+                        'bg-blue-100 text-blue-800'
+                      )}>
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    ) : (
+                      <span className={cn(
+                        'min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 lg:block hidden',
+                        item.badge === 'pending' ? 'bg-amber-500 text-white' :
+                        item.badge === 'missing' ? 'bg-red-500 text-white' :
+                        item.badge === 'expiring' ? 'bg-orange-500 text-white' :
+                        item.badge === 'alert' ? 'bg-purple-500 text-white' :
+                        'bg-blue-500 text-white'
+                      )}>
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    )
                   )}
                   {hasChildren && (
                     <ChevronDown

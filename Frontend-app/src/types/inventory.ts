@@ -14,7 +14,14 @@ export interface Item {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  // Expiration tracking fields
   earliest_expiration?: string | null
+  latest_expiration?: string | null
+  has_expired_stock?: boolean
+  has_expiring_soon?: boolean
+  has_healthy_stock?: boolean
+  has_non_expiring?: boolean
+  aggregate_expiration_status?: 'expired' | 'no_stock' | 'healthy' | 'expiring_soon' | 'expiring_month' | 'unknown'
   total_stocks?: number
 }
 

@@ -57,10 +57,57 @@ export async function listItems(filters: {
     values.push(filters.room);
   }
 
-  let expirationSelect = `(SELECT MIN(expires_at) FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) as earliest_expiration`;
+  let expirationSelect = `
+    (SELECT MIN(expires_at) FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) as earliest_expiration,
+    (SELECT MAX(expires_at) FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) as latest_expiration,
+    EXISTS (
+      SELECT 1 FROM item_lots il
+      WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at < CURRENT_DATE
+    ) as has_expired_stock,
+    EXISTS (
+      SELECT 1 FROM item_lots il
+      WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+        AND il.expires_at >= CURRENT_DATE AND il.expires_at < CURRENT_DATE + INTERVAL '7 days'
+    ) as has_expiring_soon,
+    EXISTS (
+      SELECT 1 FROM item_lots il
+      WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+        AND il.expires_at >= CURRENT_DATE + INTERVAL '30 days'
+    ) as has_healthy_stock,
+    EXISTS (
+      SELECT 1 FROM item_lots il
+      WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at IS NULL
+    ) as has_non_expiring,
+    CASE
+      WHEN EXISTS (
+        SELECT 1 FROM item_lots il
+        WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at < CURRENT_DATE
+      ) THEN 'expired'
+      WHEN NOT EXISTS (
+        SELECT 1 FROM item_lots il
+        WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+      ) THEN 'no_stock'
+      WHEN EXISTS (
+        SELECT 1 FROM item_lots il
+        WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+        AND il.expires_at >= CURRENT_DATE + INTERVAL '30 days'
+      ) THEN 'healthy'
+      WHEN EXISTS (
+        SELECT 1 FROM item_lots il
+        WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+        AND il.expires_at >= CURRENT_DATE AND il.expires_at < CURRENT_DATE + INTERVAL '7 days'
+      ) THEN 'expiring_soon'
+      WHEN EXISTS (
+        SELECT 1 FROM item_lots il
+        WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+        AND il.expires_at >= CURRENT_DATE + INTERVAL '7 days' AND il.expires_at < CURRENT_DATE + INTERVAL '30 days'
+      ) THEN 'expiring_month'
+      ELSE 'unknown'
+    END as aggregate_expiration_status
+  `;
   let quantitySelect = `
-    CASE 
-      WHEN i.item_type = 'quantifiable' THEN 
+    CASE
+      WHEN i.item_type = 'quantifiable' THEN
         COALESCE((SELECT SUM(quantity_on_hand) FROM item_lots WHERE item_id = i.id), 0)
       WHEN i.item_type = 'trackable' THEN
         COALESCE((SELECT COUNT(*) FROM item_presence_state WHERE item_id = i.id AND presence_status = 'present'), 0)
@@ -91,10 +138,55 @@ export async function listItems(filters: {
 
 export async function getItemById(id: string): Promise<Item> {
   const result = await query(
-    `SELECT i.*, 
+    `SELECT i.*,
      (SELECT MIN(expires_at) FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) as earliest_expiration,
-     CASE 
-       WHEN i.item_type = 'quantifiable' THEN 
+     (SELECT MAX(expires_at) FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) as latest_expiration,
+     EXISTS (
+       SELECT 1 FROM item_lots il
+       WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at < CURRENT_DATE
+     ) as has_expired_stock,
+     EXISTS (
+       SELECT 1 FROM item_lots il
+       WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+         AND il.expires_at >= CURRENT_DATE AND il.expires_at < CURRENT_DATE + INTERVAL '7 days'
+     ) as has_expiring_soon,
+     EXISTS (
+       SELECT 1 FROM item_lots il
+       WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+         AND il.expires_at >= CURRENT_DATE + INTERVAL '30 days'
+     ) as has_healthy_stock,
+     EXISTS (
+       SELECT 1 FROM item_lots il
+       WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at IS NULL
+     ) as has_non_expiring,
+     CASE
+       WHEN EXISTS (
+         SELECT 1 FROM item_lots il
+         WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at < CURRENT_DATE
+       ) THEN 'expired'
+       WHEN NOT EXISTS (
+         SELECT 1 FROM item_lots il
+         WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+       ) THEN 'no_stock'
+       WHEN EXISTS (
+         SELECT 1 FROM item_lots il
+         WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+         AND il.expires_at >= CURRENT_DATE + INTERVAL '30 days'
+       ) THEN 'healthy'
+       WHEN EXISTS (
+         SELECT 1 FROM item_lots il
+         WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+         AND il.expires_at >= CURRENT_DATE AND il.expires_at < CURRENT_DATE + INTERVAL '7 days'
+       ) THEN 'expiring_soon'
+       WHEN EXISTS (
+         SELECT 1 FROM item_lots il
+         WHERE il.item_id = i.id AND il.quantity_on_hand > 0
+         AND il.expires_at >= CURRENT_DATE + INTERVAL '7 days' AND il.expires_at < CURRENT_DATE + INTERVAL '30 days'
+       ) THEN 'expiring_month'
+       ELSE 'unknown'
+     END as aggregate_expiration_status,
+     CASE
+       WHEN i.item_type = 'quantifiable' THEN
          COALESCE((SELECT SUM(quantity_on_hand) FROM item_lots WHERE item_id = i.id), 0)
        WHEN i.item_type = 'trackable' THEN
          COALESCE((SELECT COUNT(*) FROM item_presence_state WHERE item_id = i.id AND presence_status = 'present'), 0)

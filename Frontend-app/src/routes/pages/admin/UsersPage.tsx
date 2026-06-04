@@ -81,9 +81,9 @@ export function UsersPage() {
   const stats = useMemo(() => {
     return {
       total: users.length,
-      active: users.filter((u) => u.is_active).length,
-      inactive: users.filter((u) => !u.is_active).length,
-      admins: users.filter((u) => u.roles.some((r) => r.name === 'admin')).length,
+      active: users.filter((u: any) => u.is_active).length,
+      inactive: users.filter((u: any) => !u.is_active).length,
+      admins: users.filter((u: any) => u.roles.some((r: any) => r.name === 'admin')).length,
     }
   }, [users])
 

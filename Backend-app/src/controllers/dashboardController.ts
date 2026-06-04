@@ -109,6 +109,7 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
       expired_items: string;
       expiring_soon_items: string;
       expiring_month_items: string;
+      safe_items: string;
       quantifiable_total: string;
     }>(`
       WITH 
@@ -135,10 +136,24 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
       ),
       expiration_stats AS (
         SELECT
-          COUNT(DISTINCT item_id) FILTER (WHERE quantity_on_hand > 0 AND expires_at < CURRENT_DATE) as expired_items,
-          COUNT(DISTINCT item_id) FILTER (WHERE quantity_on_hand > 0 AND expires_at >= CURRENT_DATE AND expires_at < CURRENT_DATE + INTERVAL '7 days') as expiring_soon_items,
-          COUNT(DISTINCT item_id) FILTER (WHERE quantity_on_hand > 0 AND expires_at >= CURRENT_DATE AND expires_at < CURRENT_DATE + INTERVAL '30 days') as expiring_month_items
-        FROM item_lots
+          COUNT(DISTINCT i.id) FILTER (WHERE aggregate_expiration_status = 'expired') as expired_items,
+          COUNT(DISTINCT i.id) FILTER (WHERE aggregate_expiration_status = 'expiring_soon') as expiring_soon_items,
+          COUNT(DISTINCT i.id) FILTER (WHERE aggregate_expiration_status = 'expiring_month') as expiring_month_items,
+          COUNT(DISTINCT i.id) FILTER (WHERE aggregate_expiration_status = 'healthy' OR aggregate_expiration_status = 'no_stock') as safe_items
+        FROM (
+          SELECT
+            i.id,
+            CASE
+              WHEN EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at < CURRENT_DATE) THEN 'expired'
+              WHEN NOT EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) THEN 'no_stock'
+              WHEN EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at >= CURRENT_DATE + INTERVAL '30 days') THEN 'healthy'
+              WHEN EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at >= CURRENT_DATE AND il.expires_at < CURRENT_DATE + INTERVAL '7 days') THEN 'expiring_soon'
+              WHEN EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at >= CURRENT_DATE + INTERVAL '7 days' AND il.expires_at < CURRENT_DATE + INTERVAL '30 days') THEN 'expiring_month'
+              ELSE 'unknown'
+            END as aggregate_expiration_status
+          FROM items i
+          WHERE i.item_type = 'quantifiable' AND i.deleted_at IS NULL
+        ) i
       ),
       quantifiable_stats AS (
         SELECT COUNT(*) as quantifiable_total FROM items WHERE item_type = 'quantifiable' AND deleted_at IS NULL
@@ -166,10 +181,7 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
     `);
 
     const row = statsResult.rows[0];
-    const expired = parseInt(row.expired_items, 10);
-    const expiringMonth = parseInt(row.expiring_month_items, 10);
-    const quantifiableTotal = parseInt(row.quantifiable_total, 10);
-    
+
     res.json({
       stats: {
         totalItems: parseInt(row.total_items, 10),
@@ -180,10 +192,10 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
         recentCheckoutsCount: parseInt(row.recent_checkouts, 10),
         activeCheckoutsCount: parseInt(row.active_checkouts, 10),
         expirationKpis: {
-          expired: expired,
+          expired: parseInt(row.expired_items, 10),
           expiringSoon: parseInt(row.expiring_soon_items, 10),
-          expiringMonth: expiringMonth,
-          safe: quantifiableTotal - expiringMonth - expired,
+          expiringMonth: parseInt(row.expiring_month_items, 10),
+          safe: parseInt(row.safe_items, 10),
         }
       },
     });

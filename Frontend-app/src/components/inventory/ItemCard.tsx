@@ -35,18 +35,39 @@ function renderItemName(name: string) {
   )
 }
 
-function getExpirationInfo(dateStr?: string | null) {
-  if (!dateStr) return null;
-  const date = new Date(dateStr);
-  const now = new Date();
-  if (isPast(date)) return { label: 'Expired', color: 'text-red-600 bg-red-100' };
-  if (isBefore(date, addDays(now, 7))) return { label: 'Expiring Soon', color: 'text-orange-600 bg-orange-100' };
-  if (isBefore(date, addDays(now, 30))) return { label: 'Expiring This Month', color: 'text-yellow-600 bg-yellow-100' };
-  return { label: 'Safe', color: 'text-green-600 bg-green-100' };
+function getExpirationInfo(item: Item) {
+  // Use aggregate_expiration_status for the overall item status
+  if (item.aggregate_expiration_status === 'expired') {
+    return { label: 'Expired', color: 'text-red-600 bg-red-100' };
+  }
+  if (item.aggregate_expiration_status === 'expiring_soon') {
+    return { label: 'Expiring Soon', color: 'text-orange-600 bg-orange-100' };
+  }
+  if (item.aggregate_expiration_status === 'expiring_month') {
+    return { label: 'Expiring This Month', color: 'text-yellow-600 bg-yellow-100' };
+  }
+  if (item.aggregate_expiration_status === 'healthy' || item.has_healthy_stock || item.has_non_expiring) {
+    return { label: 'Safe', color: 'text-green-600 bg-green-100' };
+  }
+  if (item.aggregate_expiration_status === 'no_stock') {
+    return { label: 'No Stock', color: 'text-gray-600 bg-gray-100' };
+  }
+
+  // Fallback to earliest_expiration for edge cases
+  if (item.earliest_expiration) {
+    const date = new Date(item.earliest_expiration);
+    const now = new Date();
+    if (isPast(date)) return { label: 'Expired', color: 'text-red-600 bg-red-100' };
+    if (isBefore(date, addDays(now, 7))) return { label: 'Expiring Soon', color: 'text-orange-600 bg-orange-100' };
+    if (isBefore(date, addDays(now, 30))) return { label: 'Expiring This Month', color: 'text-yellow-600 bg-yellow-100' };
+    return { label: 'Safe', color: 'text-green-600 bg-green-100' };
+  }
+
+  return null;
 }
 
 export function ItemCard({ item, onClick }: ItemCardProps) {
-  const expirationInfo = getExpirationInfo(item.earliest_expiration);
+  const expirationInfo = getExpirationInfo(item);
 
   return (
     <Card

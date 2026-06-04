@@ -15,9 +15,17 @@ import {
 export function useRooms() {
   return useQuery({
     queryKey: ['ble-rooms'],
-    queryFn: () => bleApi.getRooms().then((res) => res.data.rooms),
+    queryFn: async () => {
+      try {
+        return await bleApi.getRooms().then((res) => res.data.rooms)
+      } catch (error) {
+        console.error('Failed to fetch rooms:', error)
+        return []
+      }
+    },
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    retry: 2,
   })
 }
 
@@ -75,9 +83,17 @@ export function useDeleteRoom() {
 export function useDevices() {
   return useQuery({
     queryKey: ['ble-devices'],
-    queryFn: () => bleApi.getDevices().then((res) => res.data.devices),
+    queryFn: async () => {
+      try {
+        return await bleApi.getDevices().then((res) => res.data.devices)
+      } catch (error) {
+        console.error('Failed to fetch devices:', error)
+        return []
+      }
+    },
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    retry: 2,
   })
 }
 

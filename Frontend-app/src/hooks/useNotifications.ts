@@ -37,15 +37,23 @@ export function useNotifications(params?: GetNotificationsParams) {
   return useQuery({
     queryKey: ['notifications', params],
     queryFn: async () => {
-      const searchParams = new URLSearchParams();
-      if (params?.unread !== undefined) searchParams.set('unread', params.unread.toString());
-      if (params?.type) searchParams.set('type', params.type);
-      if (params?.limit) searchParams.set('limit', params.limit.toString());
-      if (params?.offset) searchParams.set('offset', params.offset.toString());
-      
-      const response = await api.get(`/user-status/notifications?${searchParams.toString()}`);
-      return response.data as { notifications: Notification[]; total: number; limit: number; offset: number };
+      try {
+        const searchParams = new URLSearchParams();
+        if (params?.unread !== undefined) searchParams.set('unread', params.unread.toString());
+        if (params?.type) searchParams.set('type', params.type);
+        if (params?.limit) searchParams.set('limit', params.limit.toString());
+        if (params?.offset) searchParams.set('offset', params.offset.toString());
+        
+        const response = await api.get(`/user-status/notifications?${searchParams.toString()}`);
+        return response.data as { notifications: Notification[]; total: number; limit: number; offset: number };
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+        // Return empty result on error
+        return { notifications: [], total: 0, limit: params?.limit || 50, offset: params?.offset || 0 };
+      }
     },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 }
 
@@ -53,10 +61,25 @@ export function useNotificationCounts() {
   return useQuery({
     queryKey: ['notificationCounts'],
     queryFn: async () => {
-      const response = await api.get('/user-status/notifications/counts');
-      return response.data as NotificationCounts;
+      try {
+        const response = await api.get('/user-status/notifications/counts');
+        return response.data as NotificationCounts;
+      } catch (error) {
+        console.error('Failed to fetch notification counts:', error);
+        // Return default counts on error to prevent UI from breaking
+        return {
+          total_unread: 0,
+          pending_requests: 0,
+          missing_items: 0,
+          expiring_items: 0,
+          alerts: 0,
+          latest_unread: null
+        };
+      }
     },
     refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
+    retry: 2, // Retry failed requests twice
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 }
 

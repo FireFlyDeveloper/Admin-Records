@@ -37,6 +37,7 @@ export function FolderTree({
       await updateFolder.mutateAsync({ id, data: { name } });
     } catch (error) {
       console.error('Failed to rename folder:', error);
+      addToast({ message: 'Failed to rename folder', type: 'error' });
     }
   };
 
@@ -45,6 +46,7 @@ export function FolderTree({
       await deleteFolder.mutateAsync(id);
     } catch (error) {
       console.error('Failed to delete folder:', error);
+      addToast({ message: 'Failed to delete folder', type: 'error' });
     }
   };
 

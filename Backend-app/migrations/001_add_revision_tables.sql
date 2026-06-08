@@ -22,7 +22,7 @@ COMMENT ON TABLE user_sessions IS 'Active user sessions for tracking online stat
 
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(last_active) WHERE expires_at > now();
+CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(expires_at, last_active);
 
 -- Function to update user activity
 CREATE OR REPLACE FUNCTION update_user_activity(user_uuid UUID, token TEXT, ip TEXT DEFAULT NULL, agent TEXT DEFAULT NULL)
@@ -216,7 +216,7 @@ CREATE TABLE IF NOT EXISTS scanner_sessions (
 COMMENT ON TABLE scanner_sessions IS 'Track scanner sessions and focus state for QR/barcode scanner integration';
 
 CREATE INDEX IF NOT EXISTS idx_scanner_sessions_user ON scanner_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_scanner_sessions_active ON scanner_sessions(last_used) WHERE last_used > now() - INTERVAL '1 hour';
+CREATE INDEX IF NOT EXISTS idx_scanner_sessions_active ON scanner_sessions(last_used);
 
 -- =============================================================================
 -- MULTIPLE FILE UPLOAD SUPPORT

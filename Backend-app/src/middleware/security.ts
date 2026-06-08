@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
 import { ValidationError, UnauthorizedError } from '../utils/errors';
 
 /**
@@ -69,49 +68,6 @@ export function sanitizeInputs(req: Request, res: Response, next: NextFunction) 
 
   next();
 }
-
-/**
- * Rate limiting configuration
- */
-export const rateLimiters = {
-  // Strict rate limiting for auth endpoints (login, register, etc.)
-  auth: rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 requests per window per IP
-    message: {
-      error: 'Too many authentication attempts. Please try again in 15 minutes.',
-      code: 'RATE_LIMIT_EXCEEDED',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => req.ip === '::1' || req.ip === '127.0.0.1', // Skip localhost
-  }),
-
-  // Moderate rate limiting for general API endpoints
-  api: rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // 100 requests per window per IP
-    message: {
-      error: 'Too many requests. Please try again later.',
-      code: 'RATE_LIMIT_EXCEEDED',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => req.ip === '::1' || req.ip === '127.0.0.1',
-  }),
-
-  // Lenient rate limiting for public endpoints
-  public: rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 300, // 300 requests per window per IP
-    message: {
-      error: 'Too many requests. Please try again later.',
-      code: 'RATE_LIMIT_EXCEEDED',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
-};
 
 /**
  * Password strength validation

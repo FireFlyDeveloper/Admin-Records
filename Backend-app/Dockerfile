@@ -9,16 +9,23 @@ RUN npm ci && npm cache clean --force
 # Copy source
 COPY src/ ./src/
 COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
 COPY tsconfig.json tsconfig.build.json ./
 
 # Copy scripts temporarily to src for compilation
-COPY scripts/ ./src/scripts/
+RUN cp -R scripts/ src/scripts/
 
 # Build with scripts included
 RUN npx tsc -p tsconfig.build.json
 
-# Compile migration .ts files to dist/migrations/
-RUN npx tsc migrations/*.ts --outDir dist/migrations --target ES2022 --module commonjs --esModuleInterop --skipLibCheck --ignoreConfig 2>/dev/null || true
+# Compile migration .ts files to dist/migrations/ with shared migration helpers.
+RUN npx tsc migrations/*.ts \
+    --outDir dist \
+    --target ES2022 \
+    --module commonjs \
+    --esModuleInterop \
+    --skipLibCheck \
+    --ignoreConfig
 
 # Move compiled scripts to organized location  
 RUN mkdir -p dist/scripts && \

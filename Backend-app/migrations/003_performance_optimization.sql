@@ -105,10 +105,10 @@ CREATE INDEX IF NOT EXISTS idx_item_lots_availability ON item_lots(item_id, quan
 -- ========================================================================
 
 -- Critical for online status checking (runs every 5 minutes via view)
-CREATE INDEX IF NOT EXISTS idx_user_sessions_online ON user_sessions(user_id, last_active DESC) WHERE expires_at > now();
+CREATE INDEX IF NOT EXISTS idx_user_sessions_online ON user_sessions(user_id, expires_at, last_active DESC);
 
 -- Index for cleanup operations (removes expired sessions)
-CREATE INDEX IF NOT EXISTS idx_user_sessions_expired ON user_sessions(expires_at) WHERE expires_at < now();
+CREATE INDEX IF NOT EXISTS idx_user_sessions_expired ON user_sessions(expires_at);
 
 -- ========================================================================
 -- 9. ITEM_PRESENCE_STATE OPTIMIZATION
@@ -165,7 +165,7 @@ CREATE INDEX IF NOT EXISTS idx_doc_activity_folder ON document_activity_logs(fol
 -- ========================================================================
 
 -- Index for active scanner session queries
-CREATE INDEX IF NOT EXISTS idx_scanner_sessions_active ON scanner_sessions(user_id, last_used DESC) WHERE last_used > now() - INTERVAL '1 hour' AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_scanner_sessions_active ON scanner_sessions(user_id, last_used DESC) WHERE deleted_at IS NULL;
 
 -- ========================================================================
 -- OPTIMIZATION COMPLETE

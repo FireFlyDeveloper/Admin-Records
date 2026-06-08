@@ -22,7 +22,6 @@ import { config } from './utils/config';
 import { query } from './utils/db';
 import { 
   sanitizeInputs, 
-  rateLimiters, 
   securityLogger, 
   securityHeaders 
 } from './middleware/security';
@@ -86,15 +85,8 @@ app.use(cors({
   maxAge: 86400, // 24 hours
 }));
 
-// Rate limiting - apply before other middleware
-app.use('/auth', rateLimiters.auth);
-app.use('/users', rateLimiters.api);
-
 // Security logger middleware
 app.use(securityLogger);
-
-// Input sanitization middleware
-app.use(sanitizeInputs);
 
 app.use(morgan('combined', {
   skip: (req) => req.path === '/health'
@@ -111,6 +103,29 @@ app.use(express.json({
 }));
 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Input sanitization middleware must run after body parsing so POST/PUT bodies exist.
+app.use(sanitizeInputs);
+
+app.get('/health', async (_req, res) => {
+  try {
+    const dbResult = await query('SELECT 1 as ok');
+    const dbHealthy = dbResult.rows.length > 0;
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      database: dbHealthy ? 'connected' : 'disconnected',
+      environment: config.nodeEnv,
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'degraded',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      environment: config.nodeEnv,
+    });
+  }
+});
 
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
@@ -133,26 +148,6 @@ app.get('/trackable/:id/history', (req, res) => res.redirect(307, `/ble/history/
 app.use('/ble-tags', (req, res) => res.redirect(307, '/ble/tags' + req.url));
 app.use('/rooms', (req, res) => res.redirect(307, '/ble/rooms' + req.url));
 app.get('/checkout/history', (req, res) => res.redirect(307, '/checkout'));
-
-app.get('/health', async (_req, res) => {
-  try {
-    const dbResult = await query('SELECT 1 as ok');
-    const dbHealthy = dbResult.rows.length > 0;
-    res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      database: dbHealthy ? 'connected' : 'disconnected',
-      environment: config.nodeEnv,
-    });
-  } catch (err) {
-    res.status(503).json({
-      status: 'degraded',
-      timestamp: new Date().toISOString(),
-      database: 'disconnected',
-      environment: config.nodeEnv,
-    });
-  }
-});
 
 // Admin-only database maintenance endpoints
 app.post('/admin/db/vacuum', async (req, res, next) => {

@@ -1,10 +1,10 @@
-version: "3.9"
-
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: admin-records-db
+    profiles:
+      - internal-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: admin_records
@@ -46,20 +46,17 @@ services:
     container_name: admin-records-backend
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=admin_records
-      - DB_USER=${DB_USER:-admin}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL in .env, for example postgresql://casaos:<password>@host.docker.internal:5432/admin_records}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       - PORT=3000
+      - WS_PORT=3001
       - UPLOAD_PATH=/app/uploads
     volumes:
       - ./Backend-app/uploads:/app/uploads

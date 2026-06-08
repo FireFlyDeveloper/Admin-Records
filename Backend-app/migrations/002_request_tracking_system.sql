@@ -113,13 +113,12 @@ BEGIN
       AND (il.expires_at IS NULL OR il.expires_at > now())
     GROUP BY il.id, il.quantity_on_hand
     HAVING (il.quantity_on_hand - COALESCE(SUM(ci.quantity), 0)) > 0
-    ORDER BY 
-      CASE p_selection_method
-        WHEN 'auto_fifo' THEN il.created_at -- First In First Out
-        WHEN 'auto_lifo' THEN il.created_at DESC -- Last In First Out  
-        WHEN 'auto_expiry' THEN COALESCE(il.expires_at, 'infinity'::TIMESTAMPTZ) -- Earliest expiry first
-        ELSE il.created_at
-      END
+    ORDER BY
+      CASE
+        WHEN p_selection_method = 'auto_expiry' THEN COALESCE(il.expires_at, 'infinity'::TIMESTAMPTZ)
+        WHEN p_selection_method <> 'auto_lifo' THEN il.created_at
+      END ASC,
+      CASE WHEN p_selection_method = 'auto_lifo' THEN il.created_at END DESC
   LOOP
     IF v_remaining_needed <= 0 THEN
       EXIT;

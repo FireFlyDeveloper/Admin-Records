@@ -54,6 +54,8 @@ export interface CheckoutTransaction {
   tracking_status?: string
   admin_notes?: string
   rejection_reason?: string
+  returned_at?: string | null
+  borrowed_item_names?: string | null
 }
 
 export interface CheckoutTransactionItem {

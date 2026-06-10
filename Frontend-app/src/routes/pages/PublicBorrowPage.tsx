@@ -422,10 +422,23 @@ export function PublicBorrowPage() {
 
 const addToCart = useCallback(
     (item: Item, lots: ItemLot[], qty: number) => {
-      const available = lots.filter((l) => l.quantity_on_hand > 0)
-      if (available.length === 0) return
+      const originalLotsById = new Map(lots.map((lot) => [lot.id, lot]))
+      const inCartByLot = new Map(cart.map((cartItem) => [cartItem.lot.id, cartItem.quantity]))
+
+      const available = lots
+        .map((lot) => ({
+          ...lot,
+          quantity_on_hand: Math.max(0, lot.quantity_on_hand - (inCartByLot.get(lot.id) ?? 0)),
+        }))
+        .filter((lot) => lot.quantity_on_hand > 0)
+
+      if (available.length === 0) {
+        addToast({ message: `No remaining stock available for ${item.name}`, type: 'warning' })
+        return
+      }
 
       // Use intelligent lot selection (FIFO by default - expiring soonest first)
+      // against remaining per-lot availability, not raw lot stock.
       const selections = selectMostAppropriateLots(qty, available)
       
       // Calculate how much we actually added
@@ -440,17 +453,22 @@ const addToCart = useCallback(
       setCart((prev) => {
         const next = [...prev]
         for (const sel of selections) {
+          const originalLot = originalLotsById.get(sel.lot.id) ?? sel.lot
           const index = next.findIndex((c) => c.lot.id === sel.lot.id)
           if (index >= 0) {
-            next[index] = { ...next[index], quantity: next[index].quantity + sel.quantity }
+            next[index] = {
+              ...next[index],
+              lot: originalLot,
+              quantity: Math.min(next[index].quantity + sel.quantity, originalLot.quantity_on_hand),
+            }
           } else {
-            next.push(sel)
+            next.push({ lot: originalLot, quantity: Math.min(sel.quantity, originalLot.quantity_on_hand) })
           }
         }
         return next
       })
     },
-    [addToast]
+    [addToast, cart]
   )
 
   const removeFromCart = useCallback((lotId: string) => {

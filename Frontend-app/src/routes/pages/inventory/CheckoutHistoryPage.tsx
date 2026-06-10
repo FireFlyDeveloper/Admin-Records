@@ -33,19 +33,29 @@ interface ParsedNotes {
   email?: string
   srcode?: string
   course?: string
+  created_at?: string | null
+  returned_at?: string | null
+  item_name?: string | null
+  status?: string | null
 }
 
 function parseNotes(notes: string | null | undefined): ParsedNotes | null {
   if (!notes) return null
   try {
     const parsed = JSON.parse(notes)
-    if (parsed.name || parsed.email || parsed.srcode || parsed.course) {
+    if (typeof parsed === 'object' && parsed !== null) {
       return parsed
     }
   } catch {
     // Not JSON
   }
   return null
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return 'N/A'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString()
 }
 
 function isStudentBorrow(parsedNotes: ParsedNotes | null): boolean {
@@ -210,24 +220,31 @@ export function CheckoutHistoryPage() {
   }, [checkoutDetail, selectedCheckoutId, returnButtonClickedIds, hasOnlyOneItemToReturn, returnCheckout])
 
   // State to track which checkout buttons were clicked for return
-function renderBorrowerInfo(notes: string | null | undefined) {
-    const parsedNotes = parseNotes(notes)
+function renderBorrowerInfo(txn: any) {
+    const parsedNotes = parseNotes(txn.notes)
     const isStudentBorrowCheck = isStudentBorrow(parsedNotes)
+    const requestedAt = parsedNotes?.created_at || txn.created_at
+    const returnedAt = txn.returned_at || parsedNotes?.returned_at
+    const borrowedItems = txn.borrowed_item_names || parsedNotes?.item_name || 'N/A'
+    const email = parsedNotes?.email || 'N/A'
+    const statusLabel = getStatusConfig(parsedNotes?.status || txn.status).label
+    const fieldClass = 'min-w-0 break-words'
+    const valueClass = 'break-words [overflow-wrap:anywhere]'
     
     // Admin/Staff can see full details for all borrows
     if (isAdminOrStaff) {
       return (
-        <div className="mt-1 text-xs text-muted-foreground space-y-0.5">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            <p><span className="font-medium text-foreground/80">Time Requested:</span> {notes ? new Date(JSON.parse(notes).created_at || Date.now()).toLocaleString() : 'N/A'}</p>
-            <p><span className="font-medium text-foreground/80">Time Returned:</span> {notes ? (JSON.parse(notes).returned_at ? new Date(JSON.parse(notes).returned_at).toLocaleString() : 'N/A') : 'N/A'}</p>
-            <p><span className="font-medium text-foreground/80">Requested By:</span> {parsedNotes?.name || 'N/A'}</p>
-            <p><span className="font-medium text-foreground/80">Email:</span> {parsedNotes?.email || 'N/A'}</p>
-            <p><span className="font-medium text-foreground/80">Item Borrowed:</span> {notes ? (JSON.parse(notes).item_name || 'N/A') : 'N/A'}</p>
+        <div className="mt-1 text-xs text-muted-foreground space-y-0.5 min-w-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 min-w-0">
+            <p className={fieldClass}><span className="font-medium text-foreground/80">Time Requested:</span> {formatDateTime(requestedAt)}</p>
+            <p className={fieldClass}><span className="font-medium text-foreground/80">Time Returned:</span> {formatDateTime(returnedAt)}</p>
+            <p className={fieldClass}><span className="font-medium text-foreground/80">Requested By:</span> <span className={valueClass}>{parsedNotes?.name || txn.checked_out_by_name || 'N/A'}</span></p>
+            <p className={fieldClass}><span className="font-medium text-foreground/80">Email:</span> <span className={valueClass}>{email}</span></p>
+            <p className={fieldClass}><span className="font-medium text-foreground/80">Item Borrowed:</span> <span className={valueClass}>{borrowedItems}</span></p>
             {isStudentBorrowCheck && (
               <>
-                <p><span className="font-medium text-foreground/80">SR-Code:</span> {parsedNotes?.srcode || 'N/A'}</p>
-                <p><span className="font-medium text-foreground/80">Program:</span> {parsedNotes?.course || 'N/A'}</p>
+                <p className={fieldClass}><span className="font-medium text-foreground/80">SR-Code:</span> <span className={valueClass}>{parsedNotes?.srcode || 'N/A'}</span></p>
+                <p className={fieldClass}><span className="font-medium text-foreground/80">Program:</span> <span className={valueClass}>{parsedNotes?.course || 'N/A'}</span></p>
               </>
             )}
           </div>
@@ -238,12 +255,12 @@ function renderBorrowerInfo(notes: string | null | undefined) {
     // Students can see limited information for their own requests
     // Based on role, not on whether it's a student borrow
     return (
-      <div className="mt-1 text-xs text-muted-foreground space-y-0.5">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-          <p><span className="font-medium text-foreground/80">Time Requested:</span> {notes ? new Date(JSON.parse(notes).created_at || Date.now()).toLocaleString() : 'N/A'}</p>
-          <p><span className="font-medium text-foreground/80">Time Returned:</span> {notes ? (JSON.parse(notes).returned_at ? new Date(JSON.parse(notes).returned_at).toLocaleString() : 'N/A') : 'N/A'}</p>
-          <p><span className="font-medium text-foreground/80">Item Borrowed:</span> {notes ? (JSON.parse(notes).item_name || 'N/A') : 'N/A'}</p>
-          <p><span className="font-medium text-foreground/80">Status:</span> {getStatusConfig(notes ? JSON.parse(notes).status : '').label}</p>
+      <div className="mt-1 text-xs text-muted-foreground space-y-0.5 min-w-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 min-w-0">
+          <p className={fieldClass}><span className="font-medium text-foreground/80">Time Requested:</span> {formatDateTime(requestedAt)}</p>
+          <p className={fieldClass}><span className="font-medium text-foreground/80">Time Returned:</span> {formatDateTime(returnedAt)}</p>
+          <p className={fieldClass}><span className="font-medium text-foreground/80">Item Borrowed:</span> <span className={valueClass}>{borrowedItems}</span></p>
+          <p className={fieldClass}><span className="font-medium text-foreground/80">Status:</span> {statusLabel}</p>
         </div>
       </div>
     )
@@ -290,9 +307,9 @@ function renderBorrowerInfo(notes: string | null | undefined) {
                 onClick={() => { if (!isSelected) setSelectedCheckoutId(txn.id) }}
               >
                 <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-start justify-between gap-2 sm:gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 min-w-0">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         <Package className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">Request #{getRequestNumber(txn, index)}</span>
                         <Badge variant="outline" className={cn('text-xs flex items-center gap-1', status.color)}>
@@ -308,9 +325,9 @@ function renderBorrowerInfo(notes: string | null | undefined) {
                           Requested by: {txn.checked_out_by_name}
                         </p>
                       )}
-                      {renderBorrowerInfo(txn.notes)}
+                      {renderBorrowerInfo(txn)}
                     </div>
-                    <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-1 sm:gap-2 sm:shrink-0">
                       {isAdminOrStaff && canApprove(txn.status) && (
                         <>
                           <Button

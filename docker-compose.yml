@@ -43,6 +43,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env, for example postgresql://casaos:<password>@host.docker.internal:5432/admin_records}
       REDIS_URL: redis://redis:6379
+      MQTT_URL: mqtt://host.docker.internal:1883
       JWT_SECRET: change-me-in-production
       JWT_REFRESH_SECRET: change-me-too
       PORT: "3000"

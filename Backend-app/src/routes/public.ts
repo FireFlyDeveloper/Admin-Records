@@ -71,19 +71,43 @@ router.get('/public/items/:id/lots', async (req: Request, res: Response, next: N
  */
 router.post('/public/borrow', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { srcode, email, name, course, lines } = req.body;
+    const { srcode, email, name, course, lines, items } = req.body;
 
     if (!srcode || !email || !name || !course) {
       throw new ValidationError('srcode, email, name, and course are required');
     }
-    if (!lines || !Array.isArray(lines) || lines.length === 0) {
+
+    // Accept either `lines` (canonical) or `items` (legacy/3rd-party). Normalize both.
+    const rawLines = Array.isArray(lines) && lines.length > 0 ? lines : Array.isArray(items) && items.length > 0 ? items : null;
+    if (!rawLines) {
       throw new ValidationError('lines array is required');
     }
 
-    const checkoutLines: CheckoutLine[] = lines.map((l: any) => ({
-      lot_id: l.lot_id,
-      quantity: Number(l.quantity),
-    }));
+    const checkoutLines: CheckoutLine[] = [];
+    for (const l of rawLines) {
+      const qty = Number(l.quantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        throw new ValidationError('Quantity must be a positive number');
+      }
+
+      if (l.lot_id) {
+        checkoutLines.push({ lot_id: l.lot_id, quantity: qty });
+        continue;
+      }
+
+      // Accept lot_tag or lot_code as alternative identifiers (e.g. from scanners)
+      if (l.lot_tag || l.lot_code) {
+        const code = l.lot_tag || l.lot_code;
+        const lotRes = await query(`SELECT id FROM item_lots WHERE lot_code = $1 LIMIT 1`, [code]);
+        if (lotRes.rows.length === 0) {
+          throw new ValidationError(`Lot not found for code ${code}`);
+        }
+        checkoutLines.push({ lot_id: lotRes.rows[0].id, quantity: qty });
+        continue;
+      }
+
+      throw new ValidationError('Each line must include lot_id or lot_tag/lot_code');
+    }
 
     // Store borrower info in notes as JSON so it's visible to staff reviewers
     const borrowerInfo = JSON.stringify({ srcode, email, name, course });

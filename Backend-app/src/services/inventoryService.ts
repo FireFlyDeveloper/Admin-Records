@@ -408,6 +408,16 @@ export async function createCheckout(
   }
 
   const status = isAdminOrStaff ? 'open' : 'pending_approval';
+  const normalizedLines = Array.from(
+    lines.reduce((byLot, line) => {
+      const quantity = Number(line.quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        throw new ValidationError('Quantity must be greater than 0');
+      }
+      byLot.set(line.lot_id, (byLot.get(line.lot_id) ?? 0) + quantity);
+      return byLot;
+    }, new Map<string, number>())
+  ).map(([lot_id, quantity]) => ({ lot_id, quantity }));
 
   return withTransaction(async (client) => {
     // Create transaction
@@ -421,11 +431,7 @@ export async function createCheckout(
 
     const items: CheckoutTransactionItem[] = [];
 
-    for (const line of lines) {
-      if (line.quantity <= 0) {
-        throw new ValidationError('Quantity must be greater than 0');
-      }
-
+    for (const line of normalizedLines) {
       // Lock lot row
       const lotResult = await client.query(
         `SELECT * FROM item_lots WHERE id = $1 FOR UPDATE`,
@@ -619,10 +625,24 @@ export async function listCheckouts(filters: {
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await query(
-    `SELECT DISTINCT ct.*, u.display_name as checked_out_by_name
+    `SELECT DISTINCT
+        ct.*,
+        u.display_name as checked_out_by_name,
+        checkout_summary.borrowed_item_names,
+        checkout_summary.returned_at
      FROM checkout_transactions ct
      ${joinClause}
      LEFT JOIN users u ON u.id = ct.checked_out_by
+     LEFT JOIN LATERAL (
+       SELECT
+         STRING_AGG(DISTINCT i.name, ', ' ORDER BY i.name) AS borrowed_item_names,
+         MAX(rt.created_at) AS returned_at
+       FROM checkout_transaction_items cti_summary
+       JOIN items i ON i.id = cti_summary.item_id
+       LEFT JOIN return_transaction_items rti ON rti.checkout_item_id = cti_summary.id
+       LEFT JOIN return_transactions rt ON rt.id = rti.return_transaction_id
+       WHERE cti_summary.transaction_id = ct.id
+     ) checkout_summary ON true
      ${whereClause} ORDER BY ct.created_at DESC`,
     values
   );

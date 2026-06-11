@@ -48,3 +48,22 @@ export function useUpdateLot() {
     },
   })
 }
+
+export function useDeleteLot() {
+  const queryClient = useQueryClient()
+  const addToast = useUIStore((state) => state.addToast)
+
+  return useMutation({
+    mutationFn: ({ lotId }: { lotId: string; itemId: string }) =>
+      inventoryApi.deleteLot(lotId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['lots', variables.itemId] })
+      queryClient.invalidateQueries({ queryKey: ['item', variables.itemId] })
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      addToast({ message: 'Lot deleted successfully', type: 'success' })
+    },
+    onError: (err: any) => {
+      addToast({ message: err?.response?.data?.error || 'Failed to delete lot', type: 'error' })
+    },
+  })
+}

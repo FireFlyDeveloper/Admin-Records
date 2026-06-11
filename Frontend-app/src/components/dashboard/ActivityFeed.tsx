@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Activity, FileText, Package, User, Bluetooth, AlertTriangle, LogIn, LogOut, Plus, Edit, Trash2, Download, Upload, ShoppingCart } from 'lucide-react'
 import { RecentActivity } from '@/api/dashboard'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 interface ActivityFeedProps {
   activity: RecentActivity[] | undefined
@@ -86,7 +86,9 @@ export function ActivityFeed({ activity, isLoading }: ActivityFeedProps) {
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                       <span>{entry.actorName}</span>
                       <span>·</span>
-                      <span>{formatTimeAgo(entry.createdAt)}</span>
+                      <time dateTime={entry.createdAt} title={formatTimeAgo(entry.createdAt)}>
+                        {formatDate(entry.createdAt)}
+                      </time>
                     </div>
                   </div>
                 </div>

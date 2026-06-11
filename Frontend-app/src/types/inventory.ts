@@ -7,6 +7,7 @@ export interface Item {
   item_type: ItemType
   name: string
   sku: string | null
+  item_model: string | null
   category: string | null
   description: string | null
   status: ItemStatus
@@ -122,6 +123,7 @@ export interface CreateItemInput {
   item_type: ItemType
   name: string
   sku?: string | null
+  item_model?: string | null
   category?: string
   description?: string
   status?: ItemStatus
@@ -130,6 +132,7 @@ export interface CreateItemInput {
 export interface UpdateItemInput {
   name?: string
   sku?: string | null
+  item_model?: string | null
   category?: string
   description?: string
   status?: ItemStatus
@@ -146,9 +149,9 @@ export interface CreateLotInput {
 export interface UpdateLotInput {
   lot_code?: string
   quantity_total?: number
-  purchased_at?: string
-  expires_at?: string
-  notes?: string
+  purchased_at?: string | null
+  expires_at?: string | null
+  notes?: string | null
 }
 
 export interface CheckoutInput {

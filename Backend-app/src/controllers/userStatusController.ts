@@ -166,7 +166,7 @@ export async function getNotificationCountsEndpoint(req: AuthRequest, res: Respo
       throw new ValidationError('User not authenticated');
     }
     
-    const counts = await getNotificationCounts(user.id);
+    const counts = await getNotificationCounts(user.id, user.roles || []);
     
     res.json(counts);
   } catch (err) {

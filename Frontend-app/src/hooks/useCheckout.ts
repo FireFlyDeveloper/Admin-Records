@@ -80,6 +80,8 @@ export function useApproveCheckout() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['checkouts'] })
       queryClient.invalidateQueries({ queryKey: ['checkout', id] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['notificationCounts'] })
       queryClient.invalidateQueries({ queryKey: ['lots'] })
       queryClient.invalidateQueries({ queryKey: ['items'] })
       addToast({ message: 'Checkout approved', type: 'success' })
@@ -99,6 +101,8 @@ export function useRejectCheckout() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['checkouts'] })
       queryClient.invalidateQueries({ queryKey: ['checkout', id] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['notificationCounts'] })
       addToast({ message: 'Checkout rejected', type: 'success' })
     },
     onError: (err: any) => {
@@ -136,6 +140,8 @@ export function useCancelCheckout() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['checkouts'] })
       queryClient.invalidateQueries({ queryKey: ['checkout', id] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['notificationCounts'] })
       queryClient.invalidateQueries({ queryKey: ['lots'] })
       queryClient.invalidateQueries({ queryKey: ['items'] })
       addToast({ message: 'Checkout cancelled', type: 'success' })

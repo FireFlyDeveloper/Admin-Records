@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -17,6 +17,7 @@ interface ItemFormProps {
 export function ItemForm({ open, onOpenChange, onSubmit, item, isLoading }: ItemFormProps) {
   const [name, setName] = useState(item?.name || '')
   const [sku, setSku] = useState(item?.sku || '')
+  const [itemModel, setItemModel] = useState(item?.item_model || '')
   const [category, setCategory] = useState(item?.category || '')
   const [description, setDescription] = useState(item?.description || '')
   const [itemType, setItemType] = useState<ItemType>(item?.item_type || 'quantifiable')
@@ -24,13 +25,25 @@ export function ItemForm({ open, onOpenChange, onSubmit, item, isLoading }: Item
 
   const isEdit = !!item
 
+  useEffect(() => {
+    if (!open) return
+
+    setName(item?.name || '')
+    setSku(item?.sku || '')
+    setItemModel(item?.item_model || '')
+    setCategory(item?.category || '')
+    setDescription(item?.description || '')
+    setItemType(item?.item_type || 'quantifiable')
+    setStatus(item?.status || 'active')
+  }, [open, item])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
 
     const data = isEdit
-      ? { name: name.trim(), sku: sku.trim() || null, category: category.trim() || undefined, description: description.trim() || undefined, status }
-      : { item_type: itemType, name: name.trim(), sku: sku.trim() || null, category: category.trim() || undefined, description: description.trim() || undefined, status }
+      ? { name: name.trim(), sku: sku.trim() || null, item_model: itemModel.trim() || null, category: category.trim() || undefined, description: description.trim() || undefined, status }
+      : { item_type: itemType, name: name.trim(), sku: sku.trim() || null, item_model: itemModel.trim() || null, category: category.trim() || undefined, description: description.trim() || undefined, status }
 
     onSubmit(data)
   }
@@ -60,8 +73,12 @@ export function ItemForm({ open, onOpenChange, onSubmit, item, isLoading }: Item
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Item name" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="sku">Total Stocks</Label>
-            <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="e.g. TS-100" />
+            <Label htmlFor="sku">SKU</Label>
+            <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="e.g. SKU-100" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="itemModel">Item Model</Label>
+            <Input id="itemModel" value={itemModel} onChange={(e) => setItemModel(e.target.value)} placeholder="e.g. Model X100" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="category">Category</Label>

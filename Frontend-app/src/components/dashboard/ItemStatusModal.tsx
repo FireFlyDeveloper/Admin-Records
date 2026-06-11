@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { inventoryApi } from '@/api/inventory'
-import { Item } from '@/types/inventory'
+import { Item, ItemLot } from '@/types/inventory'
 import { Package, AlertCircle, Clock, ShieldCheck, AlertTriangle, ArrowRight } from 'lucide-react'
 
 interface ItemStatusModalProps {
@@ -42,14 +42,29 @@ const statusConfig = {
   },
 }
 
+const expirationStatuses = ['expired', 'expiring_soon', 'expiring_month', 'safe'] as const
+
+type ExpirationStatus = typeof expirationStatuses[number]
+
+function isExpirationStatus(status: ItemStatusModalProps['status']): status is ExpirationStatus {
+  return !!status && expirationStatuses.includes(status as ExpirationStatus)
+}
+
+function isLot(record: Item | ItemLot): record is ItemLot {
+  return 'lot_code' in record
+}
+
 export function ItemStatusModal({ open, onOpenChange, status, title, onViewAll }: ItemStatusModalProps) {
-  const { data: items, isLoading } = useQuery({
+  const { data: records, isLoading } = useQuery<Array<Item | ItemLot>>({
     queryKey: ['item-status', status],
     queryFn: () => {
       if (status === 'missing') {
         return inventoryApi.getItems({ status: 'missing' }).then(res => res.data.items)
       }
-      return inventoryApi.getItems({ type: 'quantifiable', expiration: status || undefined }).then(res => res.data.items)
+      if (isExpirationStatus(status)) {
+        return inventoryApi.getLotsByExpiration(status).then(res => res.data.lots)
+      }
+      return Promise.resolve([])
     },
     enabled: open && status !== null,
   })
@@ -79,11 +94,11 @@ export function ItemStatusModal({ open, onOpenChange, status, title, onViewAll }
                 </div>
               ))}
             </div>
-          ) : items && items.length > 0 ? (
+          ) : records && records.length > 0 ? (
             <div className="space-y-2">
-              {items.slice(0, 10).map((item: Item) => (
+              {records.slice(0, 10).map((record: Item | ItemLot) => (
                 <div
-                  key={item.id}
+                  key={record.id}
                   className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
                   onClick={onViewAll}
                 >
@@ -91,16 +106,28 @@ export function ItemStatusModal({ open, onOpenChange, status, title, onViewAll }
                     <Package className={`h-4 w-4 ${config?.textColor || 'text-gray-600'}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.total_stocks !== undefined ? `Total Stocks: ${item.total_stocks}` : ''}
-                    </p>
+                    {isLot(record) ? (
+                      <>
+                        <p className="font-medium text-sm truncate">{record.item_name || 'Item'} · {record.lot_code}</p>
+                        <p className="text-xs text-muted-foreground">
+                          On hand: {record.quantity_on_hand}
+                          {record.expires_at ? ` · Expires: ${new Date(record.expires_at).toLocaleDateString()}` : ' · No expiration date'}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-sm truncate">{record.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {record.item_model ? `Model: ${record.item_model}` : ''}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
-              {items.length > 10 && (
+              {records.length > 10 && (
                 <p className="text-sm text-muted-foreground text-center py-2">
-                  And {items.length - 10} more items...
+                  And {records.length - 10} more {isExpirationStatus(status) ? 'lots' : 'items'}...
                 </p>
               )}
             </div>

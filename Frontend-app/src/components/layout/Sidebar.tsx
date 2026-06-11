@@ -73,20 +73,13 @@ const navItems: NavItem[] = [
     label: 'Audit Logs',
     path: '/audit-logs',
     icon: <ScrollText className="h-5 w-5" />,
-    roles: ['admin', 'staff'],
+    roles: ['admin'],
   },
   {
     label: 'Reports',
     path: '/reports',
     icon: <BarChart3 className="h-5 w-5" />,
     roles: ['admin'],
-  },
-  {
-    label: 'Notifications',
-    path: '/notifications',
-    icon: <Bell className="h-5 w-5" />,
-    roles: ['admin', 'staff'],
-    badge: 'total',
   },
   {
     label: 'Admin',
@@ -135,7 +128,9 @@ export function Sidebar() {
   // Get notification counts - use new notification system first, fallback to dashboard stats
   const pendingRequestsCount = notificationCounts?.pending_requests ?? stats?.activeCheckoutsCount ?? 0
   const missingItemsCount = notificationCounts?.missing_items ?? stats?.missingItemsCount ?? 0
-  const expiringItemsCount = notificationCounts?.expiring_items ?? ((stats?.expirationKpis?.expiringSoon ?? 0) + (stats?.expirationKpis?.expiringMonth ?? 0))
+  // Expiring inventory is a live lot-state indicator; do not use stale unread notification rows.
+  const liveExpiringItemsCount = (stats?.expirationKpis?.expiringSoon ?? 0) + (stats?.expirationKpis?.expiringMonth ?? 0)
+  const expiringItemsCount = liveExpiringItemsCount
   const totalUnread = notificationCounts?.total_unread ?? 0
 
   const getBadgeCount = (badge: NavItem['badge']) => {
@@ -175,8 +170,14 @@ export function Sidebar() {
           sidebarOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full'
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b border-border px-4">
-          <Link to="/" className="flex items-center gap-2 font-bold text-lg min-w-0">
+        <div className={cn(
+          'flex h-16 items-center border-b border-border px-4',
+          sidebarOpen ? 'justify-between' : 'justify-center lg:px-2'
+        )}>
+          <Link to="/" className={cn(
+            'flex items-center gap-2 font-bold text-lg min-w-0',
+            !sidebarOpen && 'lg:hidden'
+          )}>
             <FileText className="h-6 w-6 shrink-0" />
             <span className="truncate">Records</span>
           </Link>
@@ -184,10 +185,10 @@ export function Sidebar() {
           <button
             onClick={toggleSidebar}
             className="rounded-md p-1 hover:bg-accent shrink-0"
-            aria-label="Close sidebar"
+            aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
           >
             <X className="h-5 w-5 lg:hidden" />
-            <ChevronLeft className="h-5 w-5 hidden lg:block" />
+            <ChevronLeft className={cn('h-5 w-5 hidden lg:block transition-transform', !sidebarOpen && 'rotate-180')} />
           </button>
         </div>
 
@@ -236,7 +237,7 @@ export function Sidebar() {
                       </span>
                     ) : (
                       <span className={cn(
-                        'min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 lg:block hidden',
+                        'absolute -right-1 -top-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-bold px-1 shadow-sm ring-2 ring-card lg:flex hidden',
                         item.badge === 'pending' ? 'bg-amber-500 text-white' :
                         item.badge === 'missing' ? 'bg-red-500 text-white' :
                         item.badge === 'expiring' ? 'bg-orange-500 text-white' :

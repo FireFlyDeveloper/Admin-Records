@@ -31,6 +31,7 @@ export function useCreateFolder() {
       documentsApi.createFolder(data).then((res) => res.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] })
+      queryClient.invalidateQueries({ queryKey: ['folder-tree'] })
       addToast({ message: 'Folder created', type: 'success' })
     },
     onError: () => {
@@ -48,6 +49,8 @@ export function useUpdateFolder() {
       documentsApi.updateFolder(id, data).then((res) => res.data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['folders'] })
+      queryClient.invalidateQueries({ queryKey: ['folder-tree'] })
+      queryClient.invalidateQueries({ queryKey: ['folder-path'] })
       queryClient.invalidateQueries({ queryKey: ['folder', variables.id] })
       addToast({ message: 'Folder updated', type: 'success' })
     },
@@ -65,6 +68,8 @@ export function useDeleteFolder() {
     mutationFn: (id: string) => documentsApi.deleteFolder(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] })
+      queryClient.invalidateQueries({ queryKey: ['folder-tree'] })
+      queryClient.invalidateQueries({ queryKey: ['folder-path'] })
       addToast({ message: 'Folder deleted', type: 'success' })
     },
     onError: () => {

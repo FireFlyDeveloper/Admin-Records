@@ -25,9 +25,11 @@ import {
   updateItem,
   softDeleteItem,
   listLotsByItem,
+  listLotsByExpiration,
   getLotById,
   createLot,
   updateLot,
+  deleteLotById,
   createCheckout,
   getCheckoutById,
   listCheckouts,
@@ -47,6 +49,7 @@ import {
   notifyCheckoutRejected,
   notifyPublicBorrowerApproved,
 } from '../services/emailService';
+import { markPendingRequestNotificationsResolved } from '../services/notificationService';
 
 /**
  * Extracts and validates user context from authenticated request
@@ -208,7 +211,7 @@ export async function postItem(req: AuthRequest, res: Response, next: NextFuncti
       throw new ForbiddenError('Only admin or staff can create items');
     }
 
-    const { item_type, name, sku, category, description, status } = req.body;
+    const { item_type, name, sku, item_model, category, description, status } = req.body;
     if (!item_type || !name) {
       throw new ValidationError('item_type and name are required');
     }
@@ -220,6 +223,7 @@ export async function postItem(req: AuthRequest, res: Response, next: NextFuncti
       item_type,
       name,
       sku,
+      item_model,
       category,
       description,
       status,
@@ -282,10 +286,11 @@ export async function patchItem(req: AuthRequest, res: Response, next: NextFunct
       throw new ForbiddenError('Only admin or staff can update items');
     }
 
-    const { name, sku, category, description, status } = req.body;
+    const { name, sku, item_model, category, description, status } = req.body;
     const item = await updateItem(req.params.id as string, {
       name,
       sku,
+      item_model,
       category,
       description,
       status,
@@ -365,6 +370,25 @@ export async function getLots(req: AuthRequest, res: Response, next: NextFunctio
   }
 }
 
+export async function getLotsByExpiration(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const ctx = getUserContext(req);
+    if (!ctx.isAdmin && !ctx.isStaff) {
+      throw new ForbiddenError('Only admin or staff can view expiration lot summaries');
+    }
+
+    const expiration = req.query.expiration as string | undefined;
+    if (!expiration) {
+      throw new ValidationError('expiration query parameter is required');
+    }
+
+    const lots = await listLotsByExpiration(expiration);
+    res.json({ lots });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getLot(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const lot = await getLotById(req.params.lotId as string);
@@ -433,6 +457,29 @@ export async function patchLot(req: AuthRequest, res: Response, next: NextFuncti
     });
 
     res.json({ lot });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteLot(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const ctx = getUserContext(req);
+    if (!ctx.isAdmin && !ctx.isStaff) {
+      throw new ForbiddenError('Only admin or staff can delete lots');
+    }
+
+    const lot = await deleteLotById(req.params.lotId as string);
+
+    await logInventoryActivity({
+      actor_id: ctx.userId,
+      action: 'delete_lot',
+      entity_type: 'item_lot',
+      entity_id: lot.id,
+      metadata: { item_id: lot.item_id, lot_code: lot.lot_code, quantity_total: lot.quantity_total },
+    });
+
+    res.status(204).send();
   } catch (err) {
     next(err);
   }
@@ -574,6 +621,7 @@ export async function postApproveCheckout(req: AuthRequest, res: Response, next:
 
     const checkoutId = req.params.id as string;
     const transaction = await approveCheckout(checkoutId, ctx.userId);
+    await markPendingRequestNotificationsResolved(checkoutId);
 
     await logInventoryActivity({
       actor_id: ctx.userId,
@@ -622,6 +670,7 @@ export async function postRejectCheckout(req: AuthRequest, res: Response, next: 
 
     const checkoutId = req.params.id as string;
     const transaction = await rejectCheckout(checkoutId, ctx.userId);
+    await markPendingRequestNotificationsResolved(checkoutId);
 
     await logInventoryActivity({
       actor_id: ctx.userId,
@@ -699,6 +748,7 @@ export async function postCancel(req: AuthRequest, res: Response, next: NextFunc
     }
 
     const transaction = await cancelCheckout(checkoutId);
+    await markPendingRequestNotificationsResolved(checkoutId);
 
     await logInventoryActivity({
       actor_id: ctx.userId,

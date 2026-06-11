@@ -1,0 +1,74 @@
+import { Router } from 'express';
+import multer from 'multer';
+import {
+  getFolders,
+  postFolder,
+  patchFolder,
+  deleteFolder,
+  getFolderDocuments,
+  uploadDocument,
+  reuploadDocumentVersion,
+  batchUploadDocuments,
+  downloadDocument,
+  deleteDocument,
+  patchDocument,
+  getDocumentVersions,
+  getDocumentActivity,
+  getDocumentSearch,
+  getAllDocuments,
+  getDocumentPermissions,
+  postDocumentPermission,
+  deleteDocumentPermission,
+  getFolderPermissions,
+  postFolderPermission,
+  deleteFolderPermission,
+  checkDocumentDuplicate,
+  getFolderTreeHandler,
+  getFolderPathHandler,
+  validateFolderMoveHandler,
+} from '../controllers/documentController';
+import { authenticate } from '../middleware/auth';
+
+const upload = multer({ 
+  dest: process.env.UPLOAD_DIR || '/app/uploads/',
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB
+    files: 10
+  }
+});
+const router = Router();
+
+router.use(authenticate);
+
+// Folders
+router.get('/folders', getFolders);
+router.post('/folders', postFolder);
+router.patch('/folders/:id', patchFolder);
+router.delete('/folders/:id', deleteFolder);
+router.get('/folders/:id/documents', getFolderDocuments);
+router.get('/folders/:id/permissions', getFolderPermissions);
+router.post('/folders/:id/permissions', postFolderPermission);
+router.delete('/folders/:id/permissions/:pid', deleteFolderPermission);
+
+// Folder tree operations
+router.get('/folders/tree', getFolderTreeHandler);
+router.get('/folders/:id/path', getFolderPathHandler);
+router.post('/folders/validate-move', validateFolderMoveHandler);
+
+// Documents
+router.get('/documents', getAllDocuments);
+router.get('/documents/search', getDocumentSearch);
+router.post('/documents/upload', upload.single('file'), uploadDocument);
+router.post('/documents/upload/batch', upload.array('files', 10), batchUploadDocuments);
+router.get('/documents/check-duplicate', checkDocumentDuplicate);
+router.post('/documents/:id/upload', upload.single('file'), reuploadDocumentVersion);
+router.get('/documents/:id/download', downloadDocument);
+router.delete('/documents/:id', deleteDocument);
+router.patch('/documents/:id', patchDocument);
+router.get('/documents/:id/versions', getDocumentVersions);
+router.get('/documents/:id/activity', getDocumentActivity);
+router.get('/documents/:id/permissions', getDocumentPermissions);
+router.post('/documents/:id/permissions', postDocumentPermission);
+router.delete('/documents/:id/permissions/:pid', deleteDocumentPermission);
+
+export default router;

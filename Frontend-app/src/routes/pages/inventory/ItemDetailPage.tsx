@@ -25,7 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/stores/authStore'
 import { useItem, useUpdateItem, useDeleteItem } from '@/hooks/useItems'
-import { useLots, useCreateLot, useUpdateLot } from '@/hooks/useLots'
+import { useLots, useCreateLot, useUpdateLot, useDeleteLot } from '@/hooks/useLots'
 import {
   usePresenceDetail,
   useBleTags,
@@ -60,6 +60,7 @@ export function ItemDetailPage() {
   const [showLotForm, setShowLotForm] = useState(false)
   const [editingLot, setEditingLot] = useState<{ id: string; data: any } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [lotToDelete, setLotToDelete] = useState<{ id: string; code: string } | null>(null)
   const [checkoutLotId, setCheckoutLotId] = useState('')
   const [checkoutQty, setCheckoutQty] = useState('1')
 
@@ -84,6 +85,7 @@ export function ItemDetailPage() {
   const deleteItem = useDeleteItem()
   const createLot = useCreateLot()
   const updateLot = useUpdateLot()
+  const deleteLot = useDeleteLot()
 
   const handleUpdate = (data: UpdateItemInput) => {
     if (!id) return
@@ -118,6 +120,14 @@ export function ItemDetailPage() {
         setShowLotForm(false)
       }
     })
+  }
+
+  const handleDeleteLot = () => {
+    if (!id || !lotToDelete) return
+    deleteLot.mutate(
+      { lotId: lotToDelete.id, itemId: id },
+      { onSuccess: () => setLotToDelete(null) }
+    )
   }
 
   const handleCheckout = () => {
@@ -206,8 +216,8 @@ export function ItemDetailPage() {
                   {item.category && (
                     <span className="text-xs text-muted-foreground">{item.category}</span>
                   )}
-                  {item.total_stocks !== undefined && (
-                    <span className="text-xs font-medium">Total Stocks: {item.total_stocks}</span>
+                  {item.item_model && (
+                    <span className="text-xs font-medium">Model: {item.item_model}</span>
                   )}
                 </div>
               </div>
@@ -381,36 +391,51 @@ export function ItemDetailPage() {
               ) : lots && lots.length > 0 ? (
                 <div className="space-y-2">
                   {lots.map((lot) => (
-                    <div key={lot.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-lg border p-3">
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium">{lot.item_name || lot.lot_code}</p>
+                    <div key={lot.id} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-lg border p-3">
+                      <div className="min-w-0 w-full">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium break-words">{lot.lot_code}</p>
+                            {lot.item_name && <p className="text-xs text-muted-foreground truncate">{lot.item_name}</p>}
+                          </div>
                           {isAdminOrStaff && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => {
-                                setEditingLot({ id: lot.id, data: lot })
-                                setShowLotForm(true)
-                              }}
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </Button>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                aria-label={`Edit lot ${lot.lot_code}`}
+                                onClick={() => {
+                                  setEditingLot({ id: lot.id, data: lot })
+                                  setShowLotForm(true)
+                                }}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                aria-label={`Delete lot ${lot.lot_code}`}
+                                onClick={() => setLotToDelete({ id: lot.id, code: lot.lot_code })}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           )}
                         </div>
                         {(lot.purchased_at || lot.expires_at) && (
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="text-xs text-muted-foreground mt-1 break-words">
                             {lot.purchased_at && `Purchased: ${new Date(lot.purchased_at).toLocaleDateString()}`}
                             {lot.purchased_at && lot.expires_at && ' · '}
                             {lot.expires_at && `Expires: ${new Date(lot.expires_at).toLocaleDateString()}`}
                           </p>
                         )}
                         {lot.notes && (
-                          <p className="text-xs text-muted-foreground mt-1">{lot.notes}</p>
+                          <p className="text-xs text-muted-foreground mt-1 break-words">{lot.notes}</p>
                         )}
                       </div>
-                      <div className="text-right">
+                      <div className="w-full sm:w-auto sm:min-w-[220px] text-left sm:text-right">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                           <span>Total: <strong>{lot.quantity_total}</strong></span>
                           <span>On Hand: <strong className="text-green-700">{lot.quantity_on_hand}</strong></span>
@@ -567,6 +592,27 @@ export function ItemDetailPage() {
               </Button>
               <Button variant="destructive" onClick={handleDelete} disabled={deleteItem.isPending}>
                 {deleteItem.isPending ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lot Delete Confirmation */}
+      {lotToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setLotToDelete(null)} />
+          <div className="relative z-50 bg-background rounded-lg shadow-lg max-w-sm w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold">Delete Lot</h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              Are you sure you want to delete lot <strong>{lotToDelete.code}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setLotToDelete(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteLot} disabled={deleteLot.isPending}>
+                {deleteLot.isPending ? 'Deleting...' : 'Delete Lot'}
               </Button>
             </div>
           </div>

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { useMissingHistoryReport } from '@/hooks/useReports'
-import { exportToCSV, exportToJSON } from '@/lib/export'
+import { exportToExcel } from '@/lib/export'
 import { FileDown, AlertTriangle } from 'lucide-react'
 
 export function MissingItemsReport() {
@@ -19,9 +19,9 @@ export function MissingItemsReport() {
 
   const { data, isLoading } = useMissingHistoryReport(filters)
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!data) return
-    exportToCSV(
+    exportToExcel(
       data.map((d) => ({
         itemId: d.itemId,
         itemName: d.itemName,
@@ -30,7 +30,7 @@ export function MissingItemsReport() {
         lastSeen: d.lastSeen || 'Never',
         detectedAt: d.detectedAt,
       })),
-      `missing-items-${new Date().toISOString().split('T')[0]}.csv`,
+      `missing-items-${new Date().toISOString().split('T')[0]}.xlsx`,
       {
         itemId: 'Item ID',
         itemName: 'Item Name',
@@ -38,13 +38,9 @@ export function MissingItemsReport() {
         status: 'Status',
         lastSeen: 'Last Seen',
         detectedAt: 'Detected At',
-      }
+      },
+      'Missing Items'
     )
-  }
-
-  const handleExportJSON = () => {
-    if (!data) return
-    exportToJSON(data, `missing-items-${new Date().toISOString().split('T')[0]}.json`)
   }
 
   return (
@@ -61,13 +57,9 @@ export function MissingItemsReport() {
               <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9 sm:h-10 text-xs sm:text-sm" />
             </div>
             <div className="flex items-center gap-2 sm:ml-auto">
-              <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
+              <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
                 <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportJSON} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
-                <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                JSON
+                Excel
               </Button>
             </div>
           </div>

@@ -82,7 +82,7 @@ export const router = createBrowserRouter([
       {
         path: 'audit-logs',
         element: (
-          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+          <ProtectedRoute allowedRoles={['admin']}>
             <AuditLogPage />
           </ProtectedRoute>
         ),

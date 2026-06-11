@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useInventoryMovementReport } from '@/hooks/useReports'
-import { exportToCSV, exportToJSON } from '@/lib/export'
+import { exportToExcel } from '@/lib/export'
 import { FileDown, Search } from 'lucide-react'
 
 export function InventoryMovementReport() {
@@ -18,21 +18,24 @@ export function InventoryMovementReport() {
 
   const { data, isLoading } = useInventoryMovementReport(filters)
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!data) return
-    exportToCSV(
+    exportToExcel(
       data.map((d) => ({
         date: d.date,
         checkouts: d.checkouts,
         returns: d.returns,
+        net: d.checkouts - d.returns,
       })),
-      `inventory-movement-${new Date().toISOString().split('T')[0]}.csv`
+      `inventory-movement-${new Date().toISOString().split('T')[0]}.xlsx`,
+      {
+        date: 'Date',
+        checkouts: 'Checkouts',
+        returns: 'Returns',
+        net: 'Net',
+      },
+      'Inventory Movement'
     )
-  }
-
-  const handleExportJSON = () => {
-    if (!data) return
-    exportToJSON(data, `inventory-movement-${new Date().toISOString().split('T')[0]}.json`)
   }
 
   return (
@@ -50,13 +53,9 @@ export function InventoryMovementReport() {
               <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9 sm:h-10 text-xs sm:text-sm" />
             </div>
             <div className="flex items-center gap-2 sm:ml-auto">
-              <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
+              <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
                 <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportJSON} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
-                <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                JSON
+                Excel
               </Button>
             </div>
           </div>

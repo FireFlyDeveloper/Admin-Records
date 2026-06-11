@@ -146,6 +146,7 @@ export interface Item {
   item_type: ItemType;
   name: string;
   sku: string | null;
+  item_model: string | null;
   category: string | null;
   description: string | null;
   status: ItemStatus;

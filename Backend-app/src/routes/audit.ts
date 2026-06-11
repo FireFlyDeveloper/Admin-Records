@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, requireRoles } from '../middleware/auth';
+import { authenticate, requireAdmin } from '../middleware/auth';
 import {
   getAuditLogs,
   getAuditSummary,
@@ -7,7 +7,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate, requireRoles('admin', 'staff'));
+router.use(authenticate, requireAdmin);
 
 router.get('/', getAuditLogs);
 router.get('/summary', getAuditSummary);

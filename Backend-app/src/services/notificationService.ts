@@ -78,16 +78,25 @@ export async function getUserNotifications(
   
   const total = parseInt(countResult.rows[0].total, 10);
   
+  const pageParams = [...params];
+  const paginationClauses: string[] = [];
+  if (options.limit !== undefined) {
+    paginationClauses.push(`LIMIT $${paramIndex}`);
+    pageParams.push(options.limit);
+    paramIndex++;
+  }
+  if (options.offset !== undefined) {
+    paginationClauses.push(`OFFSET $${paramIndex}`);
+    pageParams.push(options.offset);
+  }
+
   // Get notifications
   const notificationsResult = await query(
     `SELECT * FROM notifications 
      ${whereClause}
      ORDER BY created_at DESC
-     ${options.limit ? `LIMIT $${paramIndex}` : ''}
-     ${options.offset ? `OFFSET $${paramIndex + 1}` : ''}`,
-    options.limit 
-      ? [...params, options.limit, options.offset || 0]
-      : params
+     ${paginationClauses.join('\n     ')}`,
+    pageParams
   );
   
   return {
@@ -96,24 +105,74 @@ export async function getUserNotifications(
   };
 }
 
-export async function getNotificationCounts(userId: string): Promise<NotificationCounts> {
+export async function getNotificationCounts(userId: string, userRoles: string[] = []): Promise<NotificationCounts> {
   const result = await query(
     `SELECT * FROM notification_counts WHERE user_id = $1`,
     [userId]
   );
-  
-  if (result.rows.length === 0) {
-    return {
+
+  const counts: NotificationCounts = result.rows.length === 0
+    ? {
       total_unread: 0,
       pending_requests: 0,
       missing_items: 0,
       expiring_items: 0,
       alerts: 0,
       latest_unread: null
-    };
+    }
+    : result.rows[0];
+
+  // Sidebar badges must reflect live operational state, not stale unread notification rows.
+  if (userRoles.includes('admin') || userRoles.includes('staff')) {
+    const pendingResult = await query(
+      `SELECT COUNT(*)::int as pending_requests
+       FROM checkout_transactions
+       WHERE status = 'pending_approval'`,
+      []
+    );
+    counts.pending_requests = pendingResult.rows[0]?.pending_requests ?? 0;
   }
-  
-  return result.rows[0];
+
+  const expiringResult = await query(
+    `WITH live_expiring AS (
+       SELECT COUNT(*)::int as expiring_items
+       FROM item_lots il
+       JOIN items i ON i.id = il.item_id
+       WHERE i.deleted_at IS NULL
+         AND i.item_type = 'quantifiable'
+         AND il.quantity_on_hand > 0
+         AND il.expires_at >= CURRENT_DATE
+         AND il.expires_at < CURRENT_DATE + INTERVAL '30 days'
+     ), unread_expiring_notifications AS (
+       SELECT COUNT(*)::int as stale_expiring_notifications
+       FROM notifications
+       WHERE user_id = $1
+         AND type = 'expiring_item'
+         AND NOT is_read
+     )
+     SELECT live_expiring.expiring_items, unread_expiring_notifications.stale_expiring_notifications
+     FROM live_expiring CROSS JOIN unread_expiring_notifications`,
+    [userId]
+  );
+
+  const liveExpiringItems = expiringResult.rows[0]?.expiring_items ?? 0;
+  const staleExpiringNotifications = expiringResult.rows[0]?.stale_expiring_notifications ?? 0;
+  counts.total_unread = Math.max(0, Number(counts.total_unread || 0) - Number(staleExpiringNotifications) + Number(liveExpiringItems));
+  counts.expiring_items = liveExpiringItems;
+
+  return counts;
+}
+
+export async function markPendingRequestNotificationsResolved(checkoutId: string): Promise<void> {
+  await query(
+    `UPDATE notifications
+     SET is_read = true, read_at = COALESCE(read_at, now())
+     WHERE type = 'pending_request'
+       AND entity_type = 'checkout'
+       AND entity_id = $1
+       AND NOT is_read`,
+    [checkoutId]
+  );
 }
 
 export async function markNotificationAsRead(id: string): Promise<void> {

@@ -6,9 +6,11 @@ import {
   patchItem,
   deleteItem,
   getLots,
+  getLotsByExpiration,
   getLot,
   postLot,
   patchLot,
+  deleteLot,
   postCheckout,
   getCheckouts,
   getCheckout,
@@ -33,9 +35,11 @@ router.delete('/items/:id', deleteItem);
 
 // Lots
 router.get('/items/:id/lots', getLots);
+router.get('/lots', getLotsByExpiration);
 router.get('/lots/:lotId', getLot);
 router.post('/items/:id/lots', postLot);
 router.patch('/lots/:lotId', patchLot);
+router.delete('/lots/:lotId', deleteLot);
 
 // Checkout
 router.post('/checkout', postCheckout);

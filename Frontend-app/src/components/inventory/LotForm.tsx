@@ -27,8 +27,8 @@ export function LotForm({ open, onOpenChange, onSubmit, isLoading, lot, mode = '
       if (mode === 'edit' && lot) {
         setLotCode(lot.lot_code)
         setQuantity(lot.quantity_total.toString())
-        setPurchasedAt(lot.purchased_at || '')
-        setExpiresAt(lot.expires_at || '')
+        setPurchasedAt(lot.purchased_at ? lot.purchased_at.slice(0, 10) : '')
+        setExpiresAt(lot.expires_at ? lot.expires_at.slice(0, 10) : '')
         setNotes(lot.notes || '')
       } else {
         setLotCode('')
@@ -62,14 +62,17 @@ export function LotForm({ open, onOpenChange, onSubmit, isLoading, lot, mode = '
       if (quantity && qty > 0 && qty !== lot?.quantity_total) {
         updateData.quantity_total = qty
       }
-      if (purchasedAt !== (lot?.purchased_at || '')) {
-        updateData.purchased_at = purchasedAt || undefined
+      const currentPurchasedAt = lot?.purchased_at ? lot.purchased_at.slice(0, 10) : ''
+      const currentExpiresAt = lot?.expires_at ? lot.expires_at.slice(0, 10) : ''
+
+      if (purchasedAt !== currentPurchasedAt) {
+        updateData.purchased_at = purchasedAt || null
       }
-      if (expiresAt !== (lot?.expires_at || '')) {
-        updateData.expires_at = expiresAt || undefined
+      if (expiresAt !== currentExpiresAt) {
+        updateData.expires_at = expiresAt || null
       }
       if (notes.trim() !== (lot?.notes || '')) {
-        updateData.notes = notes.trim() || undefined
+        updateData.notes = notes.trim() || null
       }
       
       // Only submit if there are changes

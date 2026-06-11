@@ -36,7 +36,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
-import { useRealTimeUserStatus } from '@/hooks/useUserStatus'
+import { getUserStatusLabel, useAllUsersStatus } from '@/hooks/useUserStatus'
 import { ManagedUser, CreateUserInput } from '@/types/auth'
 
 const ROLE_COLORS: Record<string, string> = {
@@ -69,6 +69,7 @@ export function UsersPage() {
     is_active: statusFilter ? statusFilter === 'active' : undefined,
   })
   const { data: roles } = useRoles()
+  const { data: allUsersStatus, isLoading: isStatusLoading } = useAllUsersStatus()
 
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
@@ -86,6 +87,10 @@ export function UsersPage() {
       admins: users.filter((u: any) => u.roles.some((r: any) => r.name === 'admin')).length,
     }
   }, [users])
+
+  const userStatusesById = useMemo(() => {
+    return new Map(allUsersStatus?.statuses.map((status) => [status.id, status]) ?? [])
+  }, [allUsersStatus?.statuses])
 
   const openCreate = () => {
     setEditingUser(null)
@@ -225,9 +230,13 @@ export function UsersPage() {
           ) : (
             <div className="overflow-x-auto -mx-3 sm:-mx-0">
               <div className="min-w-0 space-y-2 px-3 sm:px-0">
-{users.map((user: ManagedUser) => {
-                   const { label, isLoading, isOnline, isOffline } = useRealTimeUserStatus(user.id)
-                   return (
+                {users.map((user: ManagedUser) => {
+                  const userStatus = userStatusesById.get(user.id)
+                  const label = userStatus ? getUserStatusLabel(userStatus.status) : 'Unknown'
+                  const isOnline = userStatus?.status === 'online'
+                  const isOffline = userStatus?.status === 'offline'
+
+                  return (
                     <div key={user.id} className="flex items-center justify-between rounded-lg border p-2 sm:p-3 hover:bg-accent/50 transition-colors">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <div className="h-7 w-7 sm:h-9 sm:w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs sm:text-sm font-bold shrink-0">
@@ -250,7 +259,7 @@ export function UsersPage() {
                           ))}
                           {user.roles.length === 0 && <Badge variant="outline" className="text-xs">No roles</Badge>}
                         </div>
-                        <div className={`h-2 w-2 rounded-full shrink-0 ${isLoading ? 'bg-gray-300' : isOnline ? 'bg-green-500' : isOffline ? 'bg-red-500' : 'bg-orange-500'}`} title={isLoading ? 'Loading...' : label} />
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${isStatusLoading ? 'bg-gray-300' : isOnline ? 'bg-green-500' : isOffline ? 'bg-red-500' : 'bg-orange-500'}`} title={isStatusLoading ? 'Loading...' : label} />
                         <Button variant="ghost" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0" onClick={() => openEdit(user)}>
                           <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>

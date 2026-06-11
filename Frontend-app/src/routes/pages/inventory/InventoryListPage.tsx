@@ -39,7 +39,6 @@ export function InventoryListPage() {
   
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [typeFilter, setTypeFilter] = useState(initialType)
-  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
   const [roomFilter, setRoomFilter] = useState(validatedRoom)
   const [expirationFilter, setExpirationFilter] = useState(validatedExpiration)
@@ -54,17 +53,15 @@ export function InventoryListPage() {
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (typeFilter) params.set('type', typeFilter)
-    if (categoryFilter) params.set('category', categoryFilter)
     if (statusFilter) params.set('status', statusFilter)
     if (roomFilter) params.set('room', roomFilter)
     if (expirationFilter) params.set('expiration', expirationFilter)
     setSearchParams(params, { replace: true })
-  }, [search, typeFilter, categoryFilter, statusFilter, roomFilter, expirationFilter, setSearchParams])
+  }, [search, typeFilter, statusFilter, roomFilter, expirationFilter, setSearchParams])
 
   const { data: items, isLoading } = useItems({
     search: search || undefined,
     type: typeFilter || undefined,
-    category: categoryFilter || undefined,
     status: statusFilter || undefined,
     room: roomFilter || undefined,
     expiration: expirationFilter || undefined,
@@ -297,17 +294,6 @@ export function InventoryListPage() {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
           <option value="maintenance">Maintenance</option>
-        </Select>
-        <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-          <option value="">All Categories</option>
-          <option value="Electronics">Electronics</option>
-          <option value="Furniture">Furniture</option>
-          <option value="Lab Equipment">Lab Equipment</option>
-          <option value="Office Supplies">Office Supplies</option>
-          <option value="Tools">Tools</option>
-          <option value="Books">Books</option>
-          <option value="Software">Software</option>
-          <option value="Other">Other</option>
         </Select>
         {showExpirationFilter && (
           <Select value={expirationFilter} onChange={(e) => handleExpirationChange(e.target.value)}>

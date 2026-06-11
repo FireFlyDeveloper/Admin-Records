@@ -55,10 +55,9 @@ export function FileUploadZone({ folderId }: FileUploadZoneProps) {
           folderId,
           files: [...filesWithoutDuplicates, ...filesWithDuplicates], // All files
           conflict: 'replace', // Auto-replace duplicates
-          onProgress: (_filename, progress) => {
-            // Update progress for all files
+          onProgress: (filename, progress) => {
             setUploadResults(prev => prev.map(r => 
-              ({ ...r, progress })
+              r.file === filename ? { ...r, progress } : r
             ))
           },
         })

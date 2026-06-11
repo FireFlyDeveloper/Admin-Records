@@ -52,6 +52,16 @@ function getUserContext(req: AuthRequest) {
   return { userId: user.id, userRoles: user.roles as string[], isAdmin };
 }
 
+function getFolderParentId(body: Record<string, any>) {
+  if (Object.prototype.hasOwnProperty.call(body, 'parent_id')) {
+    return body.parent_id;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'parentId')) {
+    return body.parentId;
+  }
+  return undefined;
+}
+
 // --- Folders ---
 
 export async function getFolders(req: AuthRequest, res: Response, next: NextFunction) {
@@ -132,7 +142,8 @@ export async function validateFolderMoveHandler(req: AuthRequest, res: Response,
 export async function postFolder(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);
-    const { name, parent_id } = req.body;
+    const { name } = req.body;
+    const parent_id = getFolderParentId(req.body);
     if (!name) throw new ValidationError('name is required');
 
     if (parent_id) {
@@ -155,7 +166,8 @@ export async function postFolder(req: AuthRequest, res: Response, next: NextFunc
 export async function patchFolder(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const ctx = getUserContext(req);
-    const { name, parent_id } = req.body;
+    const { name } = req.body;
+    const parent_id = getFolderParentId(req.body);
     const folderId = req.params.id as string;
 
     const perm = await resolveFolderPermission(ctx.userId, ctx.userRoles, ctx.isAdmin, folderId);

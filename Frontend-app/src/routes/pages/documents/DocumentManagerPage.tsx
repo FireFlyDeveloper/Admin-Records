@@ -48,6 +48,9 @@ export function DocumentManagerPage() {
   const isSearching = searchQuery.trim().length > 0
   const displayDocuments = isSearching ? (searchResults || []) : (documents || [])
   const displayLoading = isSearching ? searchLoading : documentsLoading
+  const currentFolders = (folders || []).filter((folder: Folder) =>
+    selectedFolderId ? folder.parent_id === selectedFolderId : !folder.parent_id
+  )
 
   const selectedFolder = folders?.find((f: Folder) => f.id === selectedFolderId)
 
@@ -164,7 +167,7 @@ export function DocumentManagerPage() {
                     <Skeleton key={i} className="h-24 w-full rounded-lg" />
                   ))}
                 </div>
-              ) : (folders?.filter(f => !f.parent_id) || []).length === 0 ? (
+              ) : currentFolders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-lg bg-card/50 text-center">
                   <FolderOpen className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
                   <h3 className="text-lg font-medium mb-1">No folders found</h3>
@@ -176,7 +179,7 @@ export function DocumentManagerPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(folders?.filter(f => !f.parent_id) || []).map((folder) => {
+                  {currentFolders.map((folder) => {
                     return (
                       <div
                         key={folder.id}
@@ -217,6 +220,48 @@ export function DocumentManagerPage() {
                   className="pl-9"
                 />
               </div>
+
+              {!isSearching && (
+                <div className="rounded-lg border bg-card p-3 lg:p-4">
+                  <h3 className="text-sm font-semibold mb-3">Folders</h3>
+                  {foldersLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                      ))}
+                    </div>
+                  ) : currentFolders.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {currentFolders.map((folder) => (
+                        <div
+                          key={folder.id}
+                          onClick={() => setSelectedFolderId(folder.id)}
+                          className="group p-4 rounded-lg border bg-card hover:bg-accent hover:border-primary/50 transition-all cursor-pointer flex flex-col gap-3 shadow-sm"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="p-2.5 rounded-md bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+                              <FolderOpen className="h-6 w-6" />
+                            </div>
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              <h3 className="font-medium truncate group-hover:text-primary transition-colors">
+                                {folder.name}
+                              </h3>
+                            </div>
+                          </div>
+                          <div className="mt-auto pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {formatDate(folder.updated_at)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No folders in this folder.</p>
+                  )}
+                </div>
+              )}
 
               {!isSearching && <FileUploadZone folderId={selectedFolderId} />}
 

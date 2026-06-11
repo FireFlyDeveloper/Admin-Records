@@ -45,7 +45,7 @@ export async function listItems(filters: {
     values.push(filters.status);
   }
   if (filters.search) {
-    conditions.push(`(i.name ILIKE $${idx} OR i.description ILIKE $${idx} OR i.sku ILIKE $${idx})`);
+    conditions.push(`(i.name ILIKE $${idx} OR i.description ILIKE $${idx} OR i.sku ILIKE $${idx} OR i.item_model ILIKE $${idx})`);
     values.push(`%${filters.search}%`);
     idx++;
   }
@@ -203,19 +203,21 @@ export async function createItem(data: {
   item_type: 'trackable' | 'quantifiable';
   name: string;
   sku?: string | null;
+  item_model?: string | null;
   category?: string;
   description?: string;
   status?: 'active' | 'inactive' | 'maintenance';
   created_by: string;
 }): Promise<Item> {
   const result = await query(
-    `INSERT INTO items (item_type, name, sku, category, description, status, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO items (item_type, name, sku, item_model, category, description, status, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
       data.item_type,
       data.name,
       data.sku || null,
+      data.item_model || null,
       data.category || null,
       data.description || null,
       data.status || 'active',
@@ -230,6 +232,7 @@ export async function updateItem(
   data: {
     name?: string;
     sku?: string | null;
+    item_model?: string | null;
     category?: string;
     description?: string;
     status?: 'active' | 'inactive' | 'maintenance';
@@ -246,6 +249,10 @@ export async function updateItem(
   if (data.sku !== undefined) {
     sets.push(`sku = $${idx++}`);
     values.push(data.sku);
+  }
+  if (data.item_model !== undefined) {
+    sets.push(`item_model = $${idx++}`);
+    values.push(data.item_model);
   }
   if (data.category !== undefined) {
     sets.push(`category = $${idx++}`);
@@ -290,6 +297,39 @@ export async function listLotsByItem(itemId: string): Promise<ItemLot[]> {
      WHERE il.item_id = $1 
      ORDER BY il.created_at DESC`,
     [itemId]
+  );
+  return result.rows;
+}
+
+export async function listLotsByExpiration(status: string): Promise<ItemLot[]> {
+  const conditions: string[] = [
+    `i.deleted_at IS NULL`,
+    `i.item_type = 'quantifiable'`,
+    `il.quantity_on_hand > 0`,
+  ];
+
+  if (status === 'expired') {
+    conditions.push(`il.expires_at < CURRENT_DATE`);
+  } else if (status === 'expiring_soon') {
+    conditions.push(`il.expires_at >= CURRENT_DATE AND il.expires_at < CURRENT_DATE + INTERVAL '7 days'`);
+  } else if (status === 'expiring_month') {
+    conditions.push(`il.expires_at >= CURRENT_DATE + INTERVAL '7 days' AND il.expires_at < CURRENT_DATE + INTERVAL '30 days'`);
+  } else if (status === 'safe') {
+    conditions.push(`il.expires_at IS NULL OR il.expires_at >= CURRENT_DATE + INTERVAL '30 days'`);
+  } else {
+    throw new ValidationError('Invalid expiration status');
+  }
+
+  const result = await query(
+    `SELECT il.*, i.name as item_name
+     FROM item_lots il
+     JOIN items i ON i.id = il.item_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY
+       il.expires_at NULLS LAST,
+       i.name,
+       il.lot_code`,
+    []
   );
   return result.rows;
 }
@@ -355,41 +395,102 @@ export async function updateLot(
     notes?: string | null;
   }
 ): Promise<ItemLot> {
-  const sets: string[] = [];
-  const values: any[] = [];
-  let idx = 1;
+  return withTransaction(async (client) => {
+    const currentResult = await client.query<ItemLot>(
+      `SELECT * FROM item_lots WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+    if (currentResult.rows.length === 0) throw new NotFoundError('Lot not found');
 
-  if (data.lot_code !== undefined) {
-    sets.push(`lot_code = $${idx++}`);
-    values.push(data.lot_code);
-  }
-  if (data.quantity_total !== undefined) {
-    sets.push(`quantity_total = $${idx++}`);
-    values.push(data.quantity_total);
-  }
-  if (data.purchased_at !== undefined) {
-    sets.push(`purchased_at = $${idx++}`);
-    values.push(data.purchased_at);
-  }
-  if (data.expires_at !== undefined) {
-    sets.push(`expires_at = $${idx++}`);
-    values.push(data.expires_at);
-  }
-  if (data.notes !== undefined) {
-    sets.push(`notes = $${idx++}`);
-    values.push(data.notes);
-  }
-  if (sets.length === 0) throw new ValidationError('No fields to update');
+    const current = currentResult.rows[0];
+    const sets: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
 
-  sets.push(`updated_at = now()`);
-  values.push(id);
+    if (data.lot_code !== undefined) {
+      const lotCode = data.lot_code.trim();
+      if (!lotCode) throw new ValidationError('lot_code cannot be empty');
+      sets.push(`lot_code = $${idx++}`);
+      values.push(lotCode);
+    }
 
-  const result = await query(
-    `UPDATE item_lots SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
-    values
-  );
-  if (result.rows.length === 0) throw new NotFoundError('Lot not found');
-  return result.rows[0];
+    if (data.quantity_total !== undefined) {
+      const quantityTotal = Number(data.quantity_total);
+      if (!Number.isFinite(quantityTotal) || quantityTotal < 0) {
+        throw new ValidationError('quantity_total must be a non-negative number');
+      }
+      if (quantityTotal < current.quantity_out) {
+        throw new ValidationError('quantity_total cannot be less than quantity currently checked out');
+      }
+
+      const quantityDelta = quantityTotal - current.quantity_total;
+      const nextOnHand = current.quantity_on_hand + quantityDelta;
+      if (nextOnHand < 0) {
+        throw new ValidationError('Cannot reduce total below quantities already consumed or checked out');
+      }
+
+      sets.push(`quantity_total = $${idx++}`);
+      values.push(quantityTotal);
+      sets.push(`quantity_on_hand = $${idx++}`);
+      values.push(nextOnHand);
+    }
+
+    if (data.purchased_at !== undefined) {
+      sets.push(`purchased_at = $${idx++}`);
+      values.push(data.purchased_at);
+    }
+    if (data.expires_at !== undefined) {
+      sets.push(`expires_at = $${idx++}`);
+      values.push(data.expires_at);
+    }
+    if (data.notes !== undefined) {
+      sets.push(`notes = $${idx++}`);
+      values.push(data.notes);
+    }
+    if (sets.length === 0) throw new ValidationError('No fields to update');
+
+    sets.push(`updated_at = now()`);
+    values.push(id);
+
+    try {
+      const result = await client.query<ItemLot>(
+        `UPDATE item_lots SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+        values
+      );
+      return result.rows[0];
+    } catch (err: any) {
+      if (err.code === '23505') {
+        throw new ConflictError('Lot code already exists for this item');
+      }
+      throw err;
+    }
+  });
+}
+
+export async function deleteLotById(id: string): Promise<ItemLot> {
+  return withTransaction(async (client) => {
+    const lotResult = await client.query<ItemLot>(
+      `SELECT * FROM item_lots WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+    if (lotResult.rows.length === 0) throw new NotFoundError('Lot not found');
+
+    const lot = lotResult.rows[0];
+    if (lot.quantity_out > 0) {
+      throw new ValidationError('Cannot delete lot with quantity currently checked out');
+    }
+
+    const historyResult = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM checkout_transaction_items WHERE lot_id = $1`,
+      [id]
+    );
+    if (Number(historyResult.rows[0].count) > 0) {
+      throw new ValidationError('Cannot delete lot with checkout history');
+    }
+
+    await client.query(`DELETE FROM item_lots WHERE id = $1`, [id]);
+    return lot;
+  });
 }
 
 export interface CheckoutLine {

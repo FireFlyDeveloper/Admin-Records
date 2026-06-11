@@ -35,11 +35,16 @@ export const inventoryApi = {
 
   getLot: (lotId: string) => api.get<{ lot: ItemLot }>(`/lots/${lotId}`),
 
+  getLotsByExpiration: (expiration: 'expired' | 'expiring_soon' | 'expiring_month' | 'safe') =>
+    api.get<{ lots: ItemLot[] }>('/lots', { params: { expiration } }),
+
   createLot: (itemId: string, data: CreateLotInput) =>
     api.post<{ lot: ItemLot }>(`/items/${itemId}/lots`, data),
 
   updateLot: (lotId: string, data: UpdateLotInput) =>
     api.patch<{ lot: ItemLot }>(`/lots/${lotId}`, data),
+
+  deleteLot: (lotId: string) => api.delete(`/lots/${lotId}`),
 
   // Checkout
   getCheckouts: (params?: { status?: string; user_id?: string; item_id?: string }) =>

@@ -92,7 +92,7 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="capitalize">{item.item_type}</span>
                 {item.category && <span>• {item.category}</span>}
-                {item.total_stocks !== undefined && <span className="font-medium">• {item.total_stocks} in stock</span>}
+                {item.item_model && <span className="font-medium">• Model: {item.item_model}</span>}
               </div>
             </div>
           </div>

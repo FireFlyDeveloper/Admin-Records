@@ -32,27 +32,31 @@ export function useUploadDocuments() {
       conflict?: 'replace' | 'rename' | 'skip'
       onProgress?: (filename: string, progress: number) => void
     }) => {
-      // Use batch endpoint for multiple files
+      // Upload multiple files one request at a time. A single huge multipart
+      // batch can exceed nginx/CDN request limits and surface as 502, while
+      // preserving the same multi-file UX and per-file progress.
       if (files.length > 1) {
-        const formData = new FormData()
-        if (folderId) {
-          formData.append('folderId', folderId)
+        const results = []
+        for (const file of files) {
+          const formData = new FormData()
+          if (folderId) {
+            formData.append('folderId', folderId)
+          }
+          formData.append('file', file)
+
+          const response = await api.post('/documents/upload', formData, {
+            params: conflict ? { conflict } : {},
+            timeout: 300000,
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total && onProgress) {
+                const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+                onProgress(file.name, progress)
+              }
+            },
+          })
+          results.push({ success: true, file: file.name, document: response.data.document })
         }
-        files.forEach((file) => {
-          formData.append('files', file)
-        })
-        
-        const response = await api.post('/documents/upload/batch', formData, {
-          params: conflict ? { conflict } : {},
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total && onProgress) {
-              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-              // For batch, we'll send progress for all files combined
-              onProgress(`Uploading ${files.length} files`, progress)
-            }
-          },
-        })
-        return response.data
+        return { success: true, results }
       } else {
         // Single file upload
         const formData = new FormData()
@@ -63,6 +67,7 @@ export function useUploadDocuments() {
         
         const response = await api.post('/documents/upload', formData, {
           params: conflict ? { conflict } : {},
+          timeout: 300000,
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total && onProgress) {
               const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)

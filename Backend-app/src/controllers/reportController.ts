@@ -21,44 +21,33 @@ function parseDateRange(req: AuthRequest): { dateFrom?: string; dateTo?: string 
   };
 }
 
-async function formatExport(data: any[], format: string): Promise<{ body: Buffer | string; contentType: string; filename: string }> {
-  if (format === 'csv') {
-    if (data.length === 0) return { body: '', contentType: 'text/csv', filename: 'report.csv' };
-    const headers = Object.keys(data[0]);
-    const rows = data.map((row) =>
-      headers
-        .map((h) => {
-          const val = row[h];
-          if (val === null || val === undefined) return '';
-          const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
-          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`;
-          }
-          return str;
-        })
-        .join(',')
-    );
-    const body = [headers.join(','), ...rows].join('\n');
-    return { body, contentType: 'text/csv', filename: 'report.csv' };
+function addDateRangeFilter(
+  conditions: string[],
+  values: any[],
+  column: string,
+  dateFrom?: string,
+  dateTo?: string
+): void {
+  if (dateFrom) {
+    conditions.push(`${column} >= $${values.length + 1}::date`);
+    values.push(dateFrom);
   }
-  
-  if (format === 'xlsx') {
-    if (data.length === 0) {
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Report');
-      worksheet.addRow(['No data available']);
-      const buffer = await workbook.xlsx.writeBuffer();
-      return { body: Buffer.from(buffer), contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: 'report.xlsx' };
-    }
-    
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Report');
-    
-    // Add headers
+  if (dateTo) {
+    conditions.push(`${column} < ($${values.length + 1}::date + INTERVAL '1 day')`);
+    values.push(dateTo);
+  }
+}
+
+async function formatExcelExport(data: any[]): Promise<{ body: Buffer; contentType: string; filename: string }> {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Report');
+
+  if (data.length === 0) {
+    worksheet.addRow(['No data available']);
+  } else {
     const headers = Object.keys(data[0]);
     worksheet.addRow(headers);
-    
-    // Style header row
+
     const headerRow = worksheet.getRow(1);
     headerRow.font = { bold: true };
     headerRow.fill = {
@@ -66,33 +55,38 @@ async function formatExport(data: any[], format: string): Promise<{ body: Buffer
       pattern: 'solid',
       fgColor: { argb: 'FFE0E0E0' }
     };
-    
-    // Add data rows
+
     data.forEach(row => {
       const rowData = headers.map(header => {
         const value = row[header];
-        // Handle null/undefined
         if (value === null || value === undefined) return '';
-        // Handle dates
         if (value instanceof Date) return value;
         if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
           return new Date(value);
         }
-        // Handle objects
         if (typeof value === 'object') return JSON.stringify(value);
         return value;
       });
       worksheet.addRow(rowData);
     });
-    
-    // Auto-fit columns
+
     worksheet.columns = headers.map(() => ({ width: 20 }));
-    
-    const buffer = await workbook.xlsx.writeBuffer();
-    return { body: Buffer.from(buffer), contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: 'report.xlsx' };
   }
-  
-  return { body: JSON.stringify(data, null, 2), contentType: 'application/json', filename: 'report.json' };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return {
+    body: Buffer.from(buffer),
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    filename: 'report.xlsx'
+  };
+}
+
+function parseExportFormat(req: AuthRequest): 'xlsx' | undefined {
+  const format = req.query.format as string | undefined;
+  if (format && format !== 'xlsx') {
+    throw new ValidationError('format must be xlsx');
+  }
+  return format as 'xlsx' | undefined;
 }
 
 // --- Inventory Movement Report ---
@@ -103,21 +97,12 @@ export async function getInventoryMovementReport(req: AuthRequest, res: Response
     if (!ctx.isAdmin) throw new ForbiddenError('Admin access required');
 
     const { dateFrom, dateTo } = parseDateRange(req);
-    const format = (req.query.format as string) || 'json';
-    if (!['json', 'csv', 'xlsx'].includes(format)) throw new ValidationError('format must be json, csv, or xlsx');
+    const format = parseExportFormat(req);
 
     const conditions: string[] = [];
     const values: any[] = [];
-    let idx = 1;
 
-    if (dateFrom) {
-      conditions.push(`ct.created_at >= $${idx++}`);
-      values.push(dateFrom);
-    }
-    if (dateTo) {
-      conditions.push(`ct.created_at <= $${idx++}`);
-      values.push(dateTo);
-    }
+    addDateRangeFilter(conditions, values, 'ct.created_at', dateFrom, dateTo);
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -154,7 +139,7 @@ export async function getInventoryMovementReport(req: AuthRequest, res: Response
       values
     );
 
-    if (format === 'csv' || format === 'xlsx') {
+    if (format === 'xlsx') {
       const flat = result.rows.map((r) => ({
         id: r.id,
         checked_out_by: r.checked_out_by,
@@ -165,7 +150,7 @@ export async function getInventoryMovementReport(req: AuthRequest, res: Response
         updated_at: r.updated_at,
         items: JSON.stringify(r.items),
       }));
-      const { body, contentType, filename } = await formatExport(flat, format);
+      const { body, contentType, filename } = await formatExcelExport(flat);
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('report', 'inventory-movement')}"`);
       return res.send(body);
@@ -191,8 +176,7 @@ export async function getCheckoutHistoryReport(req: AuthRequest, res: Response, 
     const ctx = getUserContext(req);
     
     const { dateFrom, dateTo } = parseDateRange(req);
-    const format = (req.query.format as string) || 'json';
-    if (!['json', 'csv', 'xlsx'].includes(format)) throw new ValidationError('format must be json, csv, or xlsx');
+    const format = parseExportFormat(req);
 
     const conditions: string[] = [];
     const values: any[] = [];
@@ -204,14 +188,7 @@ export async function getCheckoutHistoryReport(req: AuthRequest, res: Response, 
       values.push(ctx.userId);
     }
 
-    if (dateFrom) {
-      conditions.push(`ct.created_at >= $${idx++}`);
-      values.push(dateFrom);
-    }
-    if (dateTo) {
-      conditions.push(`ct.created_at <= $${idx++}`);
-      values.push(dateTo);
-    }
+    addDateRangeFilter(conditions, values, 'ct.created_at', dateFrom, dateTo);
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -223,7 +200,7 @@ export async function getCheckoutHistoryReport(req: AuthRequest, res: Response, 
         ct.status,
         ct.notes,
         ct.created_at as checkout_date,
-        ct.request_number,
+        NULL::text as request_number,
         cti.id as checkout_item_id,
         cti.item_id,
         i.name as item_name,
@@ -278,8 +255,8 @@ export async function getCheckoutHistoryReport(req: AuthRequest, res: Response, 
       });
     }
 
-    if (format === 'csv' || format === 'xlsx') {
-      const { body, contentType, filename } = await formatExport(rows, format);
+    if (format === 'xlsx') {
+      const { body, contentType, filename } = await formatExcelExport(rows);
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('report', 'checkout-history')}"`);
       return res.send(body);
@@ -311,21 +288,12 @@ export async function getMissingHistoryReport(req: AuthRequest, res: Response, n
     if (!ctx.isAdmin) throw new ForbiddenError('Admin access required');
 
     const { dateFrom, dateTo } = parseDateRange(req);
-    const format = (req.query.format as string) || 'json';
-    if (!['json', 'csv', 'xlsx'].includes(format)) throw new ValidationError('format must be json, csv, or xlsx');
+    const format = parseExportFormat(req);
 
     const conditions: string[] = [`presence_status = 'missing'`];
     const values: any[] = [];
-    let idx = 1;
 
-    if (dateFrom) {
-      conditions.push(`missing_since >= $${idx++}`);
-      values.push(dateFrom);
-    }
-    if (dateTo) {
-      conditions.push(`missing_since <= $${idx++}`);
-      values.push(dateTo);
-    }
+    addDateRangeFilter(conditions, values, 'missing_since', dateFrom, dateTo);
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
@@ -350,8 +318,8 @@ export async function getMissingHistoryReport(req: AuthRequest, res: Response, n
       values
     );
 
-    if (format === 'csv' || format === 'xlsx') {
-      const { body, contentType, filename } = await formatExport(result.rows, format);
+    if (format === 'xlsx') {
+      const { body, contentType, filename } = await formatExcelExport(result.rows);
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('report', 'missing-history')}"`);
       return res.send(body);
@@ -382,21 +350,18 @@ export async function getDeviceHealthReport(req: AuthRequest, res: Response, nex
     if (!ctx.isAdmin) throw new ForbiddenError('Admin access required');
 
     const { dateFrom, dateTo } = parseDateRange(req);
-    const format = (req.query.format as string) || 'json';
-    if (!['json', 'csv', 'xlsx'].includes(format)) throw new ValidationError('format must be json, csv, or xlsx');
+    const format = parseExportFormat(req);
 
     const conditions: string[] = [];
     const values: any[] = [];
-    let idx = 1;
 
-    if (dateFrom) {
-      conditions.push(`d.created_at >= $${idx++}`);
-      values.push(dateFrom);
-    }
-    if (dateTo) {
-      conditions.push(`d.created_at <= $${idx++}`);
-      values.push(dateTo);
-    }
+    addDateRangeFilter(
+      conditions,
+      values,
+      'COALESCE(d.last_heartbeat, d.offline_since, d.created_at)',
+      dateFrom,
+      dateTo
+    );
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -428,8 +393,8 @@ export async function getDeviceHealthReport(req: AuthRequest, res: Response, nex
       values
     );
 
-    if (format === 'csv' || format === 'xlsx') {
-      const { body, contentType, filename } = await formatExport(result.rows, format);
+    if (format === 'xlsx') {
+      const { body, contentType, filename } = await formatExcelExport(result.rows);
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('report', 'device-health')}"`);
       return res.send(body);

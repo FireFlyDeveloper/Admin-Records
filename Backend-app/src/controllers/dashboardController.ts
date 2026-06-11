@@ -136,24 +136,15 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
       ),
       expiration_stats AS (
         SELECT
-          COUNT(DISTINCT i.id) FILTER (WHERE aggregate_expiration_status = 'expired') as expired_items,
-          COUNT(DISTINCT i.id) FILTER (WHERE aggregate_expiration_status = 'expiring_soon') as expiring_soon_items,
-          COUNT(DISTINCT i.id) FILTER (WHERE aggregate_expiration_status = 'expiring_month') as expiring_month_items,
-          COUNT(DISTINCT i.id) FILTER (WHERE aggregate_expiration_status = 'healthy' OR aggregate_expiration_status = 'no_stock') as safe_items
-        FROM (
-          SELECT
-            i.id,
-            CASE
-              WHEN EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at < CURRENT_DATE) THEN 'expired'
-              WHEN NOT EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0) THEN 'no_stock'
-              WHEN EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at >= CURRENT_DATE + INTERVAL '30 days') THEN 'healthy'
-              WHEN EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at >= CURRENT_DATE AND il.expires_at < CURRENT_DATE + INTERVAL '7 days') THEN 'expiring_soon'
-              WHEN EXISTS (SELECT 1 FROM item_lots il WHERE il.item_id = i.id AND il.quantity_on_hand > 0 AND il.expires_at >= CURRENT_DATE + INTERVAL '7 days' AND il.expires_at < CURRENT_DATE + INTERVAL '30 days') THEN 'expiring_month'
-              ELSE 'unknown'
-            END as aggregate_expiration_status
-          FROM items i
-          WHERE i.item_type = 'quantifiable' AND i.deleted_at IS NULL
-        ) i
+          COUNT(*) FILTER (WHERE il.expires_at < CURRENT_DATE) as expired_items,
+          COUNT(*) FILTER (WHERE il.expires_at >= CURRENT_DATE AND il.expires_at < CURRENT_DATE + INTERVAL '7 days') as expiring_soon_items,
+          COUNT(*) FILTER (WHERE il.expires_at >= CURRENT_DATE + INTERVAL '7 days' AND il.expires_at < CURRENT_DATE + INTERVAL '30 days') as expiring_month_items,
+          COUNT(*) FILTER (WHERE il.expires_at IS NULL OR il.expires_at >= CURRENT_DATE + INTERVAL '30 days') as safe_items
+        FROM item_lots il
+        JOIN items i ON i.id = il.item_id
+        WHERE i.item_type = 'quantifiable'
+          AND i.deleted_at IS NULL
+          AND il.quantity_on_hand > 0
       ),
       quantifiable_stats AS (
         SELECT COUNT(*) as quantifiable_total FROM items WHERE item_type = 'quantifiable' AND deleted_at IS NULL
@@ -169,6 +160,7 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
         e.expired_items::text,
         e.expiring_soon_items::text,
         e.expiring_month_items::text,
+        e.safe_items::text,
         q.quantifiable_total::text
       FROM items_stats i
       CROSS JOIN documents_stats d
@@ -228,21 +220,21 @@ export async function getRecentActivity(req: AuthRequest, res: Response, next: N
     }>(`
       WITH recent_activity AS (
         (
-          SELECT al.id::text, 'audit' as source, al.actor_id::text, al.action, al.entity_type, al.entity_id::text, al.after_state as metadata, al.created_at
+          SELECT al.id::text, 'audit' as source, al.actor_id, al.action, al.entity_type, al.entity_id::text, al.after_state as metadata, al.created_at
           FROM audit_logs al
           ORDER BY al.created_at DESC
           LIMIT $1
         )
         UNION ALL
         (
-          SELECT dal.id::text, 'document' as source, dal.actor_id::text, dal.action, 'document' as entity_type, dal.document_id::text, dal.metadata, dal.created_at
+          SELECT dal.id::text, 'document' as source, dal.actor_id, dal.action, 'document' as entity_type, dal.document_id::text, dal.metadata, dal.created_at
           FROM document_activity_logs dal
           ORDER BY dal.created_at DESC
           LIMIT $1
         )
         UNION ALL
         (
-          SELECT ct.id::text, 'checkout' as source, ct.checked_out_by::text as actor_id, 'checkout' as action, 'checkout_transaction' as entity_type, ct.id::text as entity_id, jsonb_build_object('status', ct.status, 'notes', ct.notes) as metadata, ct.created_at
+          SELECT ct.id::text, 'checkout' as source, ct.checked_out_by as actor_id, 'checkout' as action, 'checkout_transaction' as entity_type, ct.id::text as entity_id, jsonb_build_object('status', ct.status, 'notes', ct.notes) as metadata, ct.created_at
           FROM checkout_transactions ct
           ORDER BY ct.created_at DESC
           LIMIT $1

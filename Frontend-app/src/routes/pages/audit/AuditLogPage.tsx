@@ -9,11 +9,10 @@ import { useAuditLogs } from '@/hooks/useAudit'
 import { exportToExcel } from '@/lib/export'
 import { FileDown, Search, RotateCcw } from 'lucide-react'
 
-const actions = ['create', 'update', 'delete', 'login', 'logout', 'request', 'return', 'upload', 'download', 'scan']
+const actions = ['create', 'update', 'delete', 'request', 'return', 'upload', 'download']
 
 export function AuditLogPage() {
   const [action, setAction] = useState('')
-  const [actorId, setActorId] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [page, setPage] = useState(1)
@@ -21,7 +20,6 @@ export function AuditLogPage() {
 
   const filters = {
     ...(action ? { action } : {}),
-    ...(actorId ? { actorId } : {}),
     ...(startDate ? { startDate } : {}),
     ...(endDate ? { endDate } : {}),
     page,
@@ -35,7 +33,6 @@ export function AuditLogPage() {
 
   const handleReset = () => {
     setAction('')
-    setActorId('')
     setStartDate('')
     setEndDate('')
     setPage(1)
@@ -74,7 +71,7 @@ export function AuditLogPage() {
       {/* Filters */}
       <Card>
         <CardContent className="p-3 lg:p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Action</label>
               <Select value={action} onChange={(e) => { setAction(e.target.value); setPage(1) }}>
@@ -83,10 +80,6 @@ export function AuditLogPage() {
                   <option key={a} value={a}>{a}</option>
                 ))}
               </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Actor ID</label>
-              <Input type="text" value={actorId} onChange={(e) => { setActorId(e.target.value); setPage(1) }} placeholder="Search by actor..." />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Start Date</label>

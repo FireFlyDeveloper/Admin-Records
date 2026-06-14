@@ -8,6 +8,7 @@ import { useDeviceHealthReport } from '@/hooks/useReports'
 import { exportToExcel } from '@/lib/export'
 import { FileDown, Radio } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 
 export function DeviceHealthReport() {
   const [startDate, setStartDate] = useState('')
@@ -28,7 +29,7 @@ export function DeviceHealthReport() {
         deviceName: d.deviceName,
         roomName: d.roomName || 'Unassigned',
         status: d.status,
-        lastSeen: d.lastSeen || 'Never',
+        lastSeen: d.lastSeen ? formatDate(d.lastSeen) : 'Never',
         uptimePercent: d.uptimePercent != null ? `${d.uptimePercent}%` : 'N/A',
       })),
       `device-health-${new Date().toISOString().split('T')[0]}.xlsx`,
@@ -112,7 +113,7 @@ export function DeviceHealthReport() {
                       </Badge>
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-muted-foreground text-[10px] sm:text-xs whitespace-nowrap">
-                      {row.lastSeen ? new Date(row.lastSeen).toLocaleString() : 'Never'}
+                      {row.lastSeen ? formatDate(row.lastSeen) : 'Never'}
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-muted-foreground text-[10px] sm:text-xs whitespace-nowrap">
                       {row.uptimePercent != null ? `${row.uptimePercent}%` : 'N/A'}

@@ -52,8 +52,9 @@ function parseNotes(notes: string | null | undefined): ParsedNotes | null {
   return null
 }
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return 'N/A'
+function formatDateTime(value: string | null | undefined, isReturned: boolean = false) {
+  if (!value) return isReturned ? 'Not returned yet' : 'N/A'
+  if (typeof value !== 'string') return 'N/A'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString()
 }
@@ -224,9 +225,12 @@ function renderBorrowerInfo(txn: any) {
     const parsedNotes = parseNotes(txn.notes)
     const isStudentBorrowCheck = isStudentBorrow(parsedNotes)
     const requestedAt = parsedNotes?.created_at || txn.created_at
-    const returnedAt = txn.returned_at || parsedNotes?.returned_at
+    // For returned transactions (closed in backend), use created_at as the return time
+    // Otherwise check returned_at field or parsed notes
+    const isReturned = txn.status === 'returned'
+    const returnedAt = isReturned ? txn.created_at : (txn.returned_at || parsedNotes?.returned_at)
     const borrowedItems = txn.borrowed_item_names || parsedNotes?.item_name || 'N/A'
-    const email = parsedNotes?.email || 'N/A'
+    const email = txn.user_email || parsedNotes?.email || 'N/A'
     const statusLabel = getStatusConfig(parsedNotes?.status || txn.status).label
     const fieldClass = 'min-w-0 break-words'
     const valueClass = 'break-words [overflow-wrap:anywhere]'
@@ -237,9 +241,9 @@ function renderBorrowerInfo(txn: any) {
         <div className="mt-1 text-xs text-muted-foreground space-y-0.5 min-w-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 min-w-0">
             <p className={fieldClass}><span className="font-medium text-foreground/80">Time Requested:</span> {formatDateTime(requestedAt)}</p>
-            <p className={fieldClass}><span className="font-medium text-foreground/80">Time Returned:</span> {formatDateTime(returnedAt)}</p>
+            <p className={fieldClass}><span className="font-medium text-foreground/80">Time Returned:</span> {formatDateTime(returnedAt, true)}</p>
             <p className={fieldClass}><span className="font-medium text-foreground/80">Requested By:</span> <span className={valueClass}>{parsedNotes?.name || txn.checked_out_by_name || 'N/A'}</span></p>
-            <p className={fieldClass}><span className="font-medium text-foreground/80">Email:</span> <span className={valueClass}>{email}</span></p>
+            <p className={fieldClass}><span className="font-medium text-foreground/80">Email:</span> <span className={valueClass}>{email || 'N/A'}</span></p>
             <p className={fieldClass}><span className="font-medium text-foreground/80">Item Borrowed:</span> <span className={valueClass}>{borrowedItems}</span></p>
             {isStudentBorrowCheck && (
               <>
@@ -258,7 +262,7 @@ function renderBorrowerInfo(txn: any) {
       <div className="mt-1 text-xs text-muted-foreground space-y-0.5 min-w-0">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 min-w-0">
           <p className={fieldClass}><span className="font-medium text-foreground/80">Time Requested:</span> {formatDateTime(requestedAt)}</p>
-          <p className={fieldClass}><span className="font-medium text-foreground/80">Time Returned:</span> {formatDateTime(returnedAt)}</p>
+          <p className={fieldClass}><span className="font-medium text-foreground/80">Time Returned:</span> {formatDateTime(returnedAt, true)}</p>
           <p className={fieldClass}><span className="font-medium text-foreground/80">Item Borrowed:</span> <span className={valueClass}>{borrowedItems}</span></p>
           <p className={fieldClass}><span className="font-medium text-foreground/80">Status:</span> {statusLabel}</p>
         </div>

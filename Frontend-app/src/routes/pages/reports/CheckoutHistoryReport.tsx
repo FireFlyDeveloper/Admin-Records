@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { useCheckoutHistoryReport } from '@/hooks/useReports'
 import { exportToExcel } from '@/lib/export'
 import { FileDown, Search } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -47,7 +47,7 @@ export function CheckoutHistoryReport() {
         processedBy: d.processedBy || '',
         status: statusLabels[d.status] || d.status,
         itemCount: d.itemCount,
-        dateTime: new Date(d.createdAt).toLocaleString(),
+        dateTime: formatDate(d.createdAt),
       })),
       `checkout-history-${new Date().toISOString().split('T')[0]}.xlsx`,
       {
@@ -123,7 +123,7 @@ export function CheckoutHistoryReport() {
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{row.itemCount}</td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-muted-foreground text-[10px] sm:text-xs whitespace-nowrap">
-                      {new Date(row.createdAt).toLocaleString()}
+                      {formatDate(row.createdAt)}
                     </td>
                   </tr>
                 ))

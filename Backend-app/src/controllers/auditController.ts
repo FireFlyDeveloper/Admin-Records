@@ -111,8 +111,14 @@ export async function getAuditLogs(req: AuthRequest, res: Response, next: NextFu
       values.push(ai as string);
     }
     if (action) {
-      conditions.push(`action = $${idx++}`);
-      values.push(action as string);
+      // If user searches for 'request', also include 'checkout' (conversion mapping)
+      if (action === 'request') {
+        conditions.push(`(action = $${idx++} OR action = 'checkout')`);
+        values.push('request');
+      } else {
+        conditions.push(`action = $${idx++}`);
+        values.push(action as string);
+      }
     }
     addDateRangeFilter(conditions, values, 'created_at', df as string | undefined, dt as string | undefined);
 
@@ -149,8 +155,8 @@ export async function getAuditLogs(req: AuthRequest, res: Response, next: NextFu
     // Map to frontend expected shape
     const logs = result.rows.map((r) => ({
       id: r.id,
-      entityType: r.entity_type,
-      action: r.action,
+      entityType: r.entity_type === 'checkout_transaction' ? 'lot' : r.entity_type,
+      action: r.action === 'checkout' ? 'request' : r.action,
       actorId: r.actor_id,
       actorName: r.actor_display_name || (r.actor_id ? r.actor_id.slice(0, 8) + '...' : 'System'),
       entityId: r.entity_id,

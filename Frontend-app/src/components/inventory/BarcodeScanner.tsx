@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { QrCode, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { CameraButton } from './CameraButton';
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void;
@@ -42,7 +41,6 @@ export function BarcodeScanner({ onScan, isLoading = false, placeholder = 'Scan 
           disabled={isLoading}
         />
       </div>
-      <CameraButton onScan={onScan} />
       <Button
         type="submit"
         size="icon"

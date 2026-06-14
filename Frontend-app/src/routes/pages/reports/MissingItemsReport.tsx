@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { useMissingHistoryReport } from '@/hooks/useReports'
 import { exportToExcel } from '@/lib/export'
 import { FileDown, AlertTriangle } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
 
 export function MissingItemsReport() {
   const [startDate, setStartDate] = useState('')
@@ -27,8 +28,8 @@ export function MissingItemsReport() {
         itemName: d.itemName,
         roomName: d.roomName || 'Unassigned',
         status: d.status,
-        lastSeen: d.lastSeen || 'Never',
-        detectedAt: d.detectedAt,
+        lastSeen: d.lastSeen ? formatDate(d.lastSeen) : 'Never',
+        detectedAt: d.detectedAt ? formatDate(d.detectedAt) : 'Never',
       })),
       `missing-items-${new Date().toISOString().split('T')[0]}.xlsx`,
       {
@@ -103,10 +104,10 @@ export function MissingItemsReport() {
                       </Badge>
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-muted-foreground text-[10px] sm:text-xs whitespace-nowrap">
-                      {row.lastSeen ? new Date(row.lastSeen).toLocaleString() : 'Never'}
+                      {row.lastSeen ? formatDate(row.lastSeen) : 'Never'}
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-muted-foreground text-[10px] sm:text-xs whitespace-nowrap">
-                      {new Date(row.detectedAt).toLocaleString()}
+                      {formatDate(row.detectedAt)}
                     </td>
                   </tr>
                 ))

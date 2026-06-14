@@ -507,8 +507,8 @@ export async function postCheckout(req: AuthRequest, res: Response, next: NextFu
 
     await logInventoryActivity({
       actor_id: ctx.userId,
-      action: ctx.isAdmin || ctx.isStaff ? 'checkout' : 'checkout_request',
-      entity_type: 'checkout_transaction',
+      action: ctx.isAdmin || ctx.isStaff ? 'request' : 'request',
+      entity_type: 'lot',
       entity_id: result.transaction.id,
       metadata: { items: result.items.map((i) => ({ lot_id: i.lot_id, qty: i.quantity_out })), status: result.transaction.status },
     });

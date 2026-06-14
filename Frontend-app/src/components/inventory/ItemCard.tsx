@@ -1,7 +1,6 @@
-import { Package, Box, AlertTriangle, Clock, Eye } from 'lucide-react'
+import { Package, Box, AlertTriangle, Clock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Item } from '@/types/inventory'
 import { cn } from '@/lib/utils'
 import { isPast, isBefore, addDays } from 'date-fns'
@@ -100,21 +99,6 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
             <Badge variant="outline" className={cn('shrink-0 text-xs', statusColors[item.status])}>
               {item.status}
             </Badge>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent card click from also triggering
-                onClick?.();
-              }}
-              disabled={!onClick}
-              className="shrink-0 h-7 px-3 text-xs hover:bg-accent hover:text-accent-foreground"
-              aria-label={`View details for ${item.name}`}
-            >
-              <Eye className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
-              View Details
-            </Button>
           </div>
         </div>
         {item.description && (

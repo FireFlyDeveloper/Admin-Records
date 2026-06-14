@@ -5,16 +5,13 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { useAuditLogs } from '@/hooks/useAudit'
 import { exportToExcel } from '@/lib/export'
 import { FileDown, Search, RotateCcw } from 'lucide-react'
 
-const entityTypes = ['document', 'item', 'user', 'device', 'checkout', 'folder', 'permission']
-const actions = ['create', 'update', 'delete', 'login', 'logout', 'checkout', 'return', 'upload', 'download', 'scan']
+const actions = ['create', 'update', 'delete', 'login', 'logout', 'request', 'return', 'upload', 'download', 'scan']
 
 export function AuditLogPage() {
-  const [entityType, setEntityType] = useState('')
   const [action, setAction] = useState('')
   const [actorId, setActorId] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -23,7 +20,6 @@ export function AuditLogPage() {
   const limit = 25
 
   const filters = {
-    ...(entityType ? { entityType } : {}),
     ...(action ? { action } : {}),
     ...(actorId ? { actorId } : {}),
     ...(startDate ? { startDate } : {}),
@@ -38,7 +34,6 @@ export function AuditLogPage() {
   const totalPages = Math.ceil(total / limit)
 
   const handleReset = () => {
-    setEntityType('')
     setAction('')
     setActorId('')
     setStartDate('')
@@ -49,14 +44,12 @@ export function AuditLogPage() {
   const handleExportExcel = () => {
     exportToExcel(
       logs.map((l) => ({
-        entityType: l.entityType,
         action: l.action,
         actor: l.actorName,
         dateTime: new Date(l.createdAt).toLocaleString(),
       })),
       `audit-logs-${new Date().toISOString().split('T')[0]}.xlsx`,
       {
-        entityType: 'Entity Type',
         action: 'Action',
         actor: 'Actor',
         dateTime: 'Date/Time',
@@ -81,16 +74,7 @@ export function AuditLogPage() {
       {/* Filters */}
       <Card>
         <CardContent className="p-3 lg:p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 md:gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Entity Type</label>
-              <Select value={entityType} onChange={(e) => { setEntityType(e.target.value); setPage(1) }}>
-                <option value="">All</option>
-                {entityTypes.map((et) => (
-                  <option key={et} value={et}>{et}</option>
-                ))}
-              </Select>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Action</label>
               <Select value={action} onChange={(e) => { setAction(e.target.value); setPage(1) }}>
@@ -99,6 +83,10 @@ export function AuditLogPage() {
                   <option key={a} value={a}>{a}</option>
                 ))}
               </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Actor ID</label>
+              <Input type="text" value={actorId} onChange={(e) => { setActorId(e.target.value); setPage(1) }} placeholder="Search by actor..." />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Start Date</label>
@@ -124,7 +112,6 @@ export function AuditLogPage() {
           <table className="w-full text-xs lg:text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Entity</th>
                 <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Action</th>
                 <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Actor</th>
                 <th className="text-left px-2 lg:px-4 py-2 lg:py-3 font-medium">Date/Time</th>
@@ -137,17 +124,11 @@ export function AuditLogPage() {
                     <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-16" /></td>
                     <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-24" /></td>
-                    <td className="px-2 lg:px-4 py-2 lg:py-3"><Skeleton className="h-4 w-32" /></td>
                   </tr>
                 ))
               ) : logs.length > 0 ? (
                 logs.map((log) => (
                   <tr key={log.id} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="px-2 lg:px-4 py-2 lg:py-3">
-                      <Badge variant="outline" className="capitalize text-xs">
-                        {log.entityType}
-                      </Badge>
-                    </td>
                     <td className="px-2 lg:px-4 py-2 lg:py-3">
                       <span className="capitalize font-medium">{log.action}</span>
                     </td>

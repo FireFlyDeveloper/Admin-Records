@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useInventoryMovementReport } from '@/hooks/useReports'
 import { exportToExcel } from '@/lib/export'
 import { FileDown, Search } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
 
 export function InventoryMovementReport() {
   const [startDate, setStartDate] = useState('')
@@ -22,7 +23,7 @@ export function InventoryMovementReport() {
     if (!data) return
     exportToExcel(
       data.map((d) => ({
-        date: d.date,
+        date: formatDate(d.date),
         checkouts: d.checkouts,
         returns: d.returns,
         net: d.checkouts - d.returns,
@@ -90,7 +91,7 @@ export function InventoryMovementReport() {
               ) : data && data.length > 0 ? (
                 data.map((row) => (
                   <tr key={row.date} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{row.date}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{formatDate(row.date)}</td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{row.checkouts}</td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{row.returns}</td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium whitespace-nowrap">{row.checkouts - row.returns}</td>

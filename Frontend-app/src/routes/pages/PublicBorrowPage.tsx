@@ -14,9 +14,7 @@ import {
   ChevronUp,
   ChevronDown,
   PartyPopper,
-  Camera,
 } from 'lucide-react'
-import { Html5Qrcode } from 'html5-qrcode'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -123,57 +121,6 @@ function StudentInfoForm({
   value: StudentInfo
   onChange: (v: StudentInfo) => void
 }) {
-  const [scannerOpen, setScannerOpen] = useState(false)
-  const [selectedCamera, setSelectedCamera] = useState<string>('')
-  const scannerRef = useRef<Html5Qrcode | null>(null)
-  const containerIdRef = useRef<string>('borrow-scanner-' + Date.now())
-
-  useEffect(() => {
-    return () => {
-      if (scannerRef.current) {
-        void scannerRef.current.stop()
-      }
-    }
-  }, [])
-
-  const handleScan = (code: string) => {
-    onChange({ ...value, srcode: code })
-    setScannerOpen(false)
-  }
-
-  const startScanner = async () => {
-    if (!selectedCamera) return
-    try {
-      const html5Qrcode = new Html5Qrcode(containerIdRef.current)
-      scannerRef.current = html5Qrcode
-      const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.777777 }
-      const onScanSuccess = (decodedText: string) => {
-        handleScan(decodedText)
-      }
-      const onScanError = (error: string) => { console.debug('Scan error:', error) }
-      await html5Qrcode.start(selectedCamera, config, onScanSuccess, onScanError)
-    } catch (error) { console.error('Failed to start scanner:', error) }
-  }
-
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try { await scannerRef.current.stop() } catch (error) { console.warn('Error stopping scanner:', error) }
-      scannerRef.current = null
-    }
-  }
-
-  const openScanner = async () => {
-    try {
-      const camerasList = await Html5Qrcode.getCameras()
-      if (camerasList.length > 0) { setSelectedCamera(camerasList[0].id) }
-      setScannerOpen(true)
-    } catch (error) { console.error('Failed to access cameras:', error); setScannerOpen(true) }
-  }
-
-  useEffect(() => {
-    if (scannerOpen && selectedCamera) { startScanner() } else if (!scannerOpen) { stopScanner() }
-  }, [scannerOpen, selectedCamera])
-
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
@@ -181,23 +128,11 @@ function StudentInfoForm({
           <Hash className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           Student ID (SR-Code)
         </label>
-        <div className="flex gap-2">
-          <Input
-            placeholder="e.g. SR-24-00001"
-            value={value.srcode}
-            onChange={(e) => onChange({ ...value, srcode: e.target.value })}
-          />
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            onClick={openScanner}
-            title="Scan student ID"
-            className="h-9 w-9 shrink-0"
-          >
-            <Camera className="h-4 w-4" />
-          </Button>
-        </div>
+        <Input
+          placeholder="e.g. SR-24-00001"
+          value={value.srcode}
+          onChange={(e) => onChange({ ...value, srcode: e.target.value })}
+        />
       </div>
       <div className="space-y-1.5">
         <label className="text-sm font-medium flex items-center gap-2">
@@ -692,10 +627,17 @@ const addToCart = useCallback(
               Back
             </Button>
             <Button
-              onClick={() => setStep('review')}
-              disabled={!isInfoValid}
+              onClick={() => borrowMutation.mutate()}
+              disabled={!isInfoValid || borrowMutation.isPending}
             >
-              Review Request
+              {borrowMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Request'
+              )}
             </Button>
           </div>
         </div>

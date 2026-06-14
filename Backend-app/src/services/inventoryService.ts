@@ -729,6 +729,7 @@ export async function listCheckouts(filters: {
     `SELECT DISTINCT
         ct.*,
         u.display_name as checked_out_by_name,
+        u.email as user_email,
         checkout_summary.borrowed_item_names,
         checkout_summary.returned_at
      FROM checkout_transactions ct

@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: admin-records-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: admin_records
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./Backend-app/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d admin_records"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - admin-network
+
+  emqx:
+    image: emqx/emqx:5.8.0
+    container_name: admin-records-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: admin123
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "18083:18083"
+    volumes:
+      - emqx_data:/opt/emqx/data
+    healthcheck:
+      test: ["CMD", "emqx", "ctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - admin-network
+
+  theia:
+    image: theiaide/theia:latest
+    container_name: admin-records-theia
+    restart: unless-stopped
+    volumes:
+      - ./:/home/project:delegated
+    ports:
+      - "3002:3000"
+    networks:
+      - admin-network
+
+  backend:
+    image: node:20-alpine
+    container_name: admin-records-backend
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npm run build && npm start"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://admin:***@postgres:5432/admin_records
+      - JWT_SECRET=***      - PORT=3000
+      - UPLOAD_PATH=/app/uploads
+      - MQTT_HOST=emqx
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=rtls/readings
+    volumes:
+      - ./Backend-app:/app
+      - /app/node_modules
+    ports:
+      - "3001:3000"
+    networks:
+      - admin-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    image: nginx:alpine
+    container_name: admin-records-frontend
+    restart: unless-stopped
+    volumes:
+      - ./Frontend-app/dist:/usr/share/nginx/html:ro
+      - ./Frontend-app/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+    networks:
+      - admin-network
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  emqx_data:
+
+networks:
+  admin-network:
+    driver: bridge

@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: admin-records-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: admin_records
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./Backend-app/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - admin-network
+
+  emqx:
+    image: emqx/emqx:5.8.0
+    container_name: admin-records-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: admin123
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "18083:18083"
+    networks:
+      - admin-network
+
+  theia:
+    image: theiaide/theia:latest
+    container_name: admin-records-theia
+    restart: unless-stopped
+    volumes:
+      - ./:/home/project:delegated
+    ports:
+      - "3002:3000"
+    networks:
+      - admin-network
+
+  backend:
+    image: admin-records-backend:latest
+    container_name: admin-records-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://admin:***@postgres:5432/admin_records
+      - JWT_SECRET=***
+      - PORT=3000
+      - MQTT_HOST=emqx
+      - MQTT_PORT=1883
+    ports:
+      - "3001:3000"
+    networks:
+      - admin-network
+    depends_on:
+      - postgres
+      - emqx
+
+  frontend:
+    image: admin-records-frontend:latest
+    container_name: admin-records-frontend
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://100.74.79.68:3001
+    ports:
+      - "80:80"
+    networks:
+      - admin-network
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+
+networks:
+  admin-network:
+    driver: bridge

@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { PageShell } from '@/components/layout/PageShell'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { InventoryMovementReport } from './InventoryMovementReport'
-import { CheckoutHistoryReport } from './CheckoutHistoryReport'
+import { RequestsReport } from './RequestsReport'
 import { MissingItemsReport } from './MissingItemsReport'
 import { DeviceHealthReport } from './DeviceHealthReport'
-import { BarChart3, ShoppingCart, AlertTriangle, Radio } from 'lucide-react'
+import { BarChart3, ClipboardList, AlertTriangle, Radio } from 'lucide-react'
 
 export function ReportsPage() {
   const [activeTab, setActiveTab] = useState('inventory-movement')
@@ -22,10 +22,10 @@ export function ReportsPage() {
             <span className="hidden xs:inline">Inventory Movement</span>
             <span className="inline xs:hidden">Movement</span>
           </TabsTrigger>
-          <TabsTrigger value="checkout-history" className="text-xs sm:text-sm px-2 sm:px-3">
-            <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-            <span className="hidden xs:inline">Checkout History</span>
-            <span className="inline xs:hidden">Checkouts</span>
+          <TabsTrigger value="requests" className="text-xs sm:text-sm px-2 sm:px-3">
+            <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <span className="hidden xs:inline">Requests</span>
+            <span className="inline xs:hidden">Requests</span>
           </TabsTrigger>
           <TabsTrigger value="missing-items" className="text-xs sm:text-sm px-2 sm:px-3">
             <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
@@ -42,8 +42,8 @@ export function ReportsPage() {
         <TabsContent value="inventory-movement">
           <InventoryMovementReport />
         </TabsContent>
-        <TabsContent value="checkout-history">
-          <CheckoutHistoryReport />
+        <TabsContent value="requests">
+          <RequestsReport />
         </TabsContent>
         <TabsContent value="missing-items">
           <MissingItemsReport />

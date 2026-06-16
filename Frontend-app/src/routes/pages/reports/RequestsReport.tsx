@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { useCheckoutHistoryReport } from '@/hooks/useReports'
+import { useRequestsReport } from '@/hooks/useReports'
 import { exportToExcel } from '@/lib/export'
 import { FileDown, Search } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
@@ -27,7 +27,7 @@ const statusLabels: Record<string, string> = {
   cancelled: 'cancelled',
 }
 
-export function CheckoutHistoryReport() {
+export function RequestsReport() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
@@ -36,7 +36,7 @@ export function CheckoutHistoryReport() {
     ...(endDate ? { endDate } : {}),
   }
 
-  const { data, isLoading } = useCheckoutHistoryReport(filters)
+  const { data, isLoading } = useRequestsReport(filters)
 
   const handleExportExcel = () => {
     if (!data) return
@@ -49,7 +49,7 @@ export function CheckoutHistoryReport() {
         itemCount: d.itemCount,
         dateTime: formatDate(d.createdAt),
       })),
-      `checkout-history-${new Date().toISOString().split('T')[0]}.xlsx`,
+      `requests-${new Date().toISOString().split('T')[0]}.xlsx`,
       {
         requestNumber: 'Request #',
         checkedOutBy: 'Checked Out By',
@@ -58,7 +58,7 @@ export function CheckoutHistoryReport() {
         itemCount: 'Items',
         dateTime: 'Date/Time',
       },
-      'Checkout History'
+      'Requests'
     )
   }
 
@@ -131,7 +131,7 @@ export function CheckoutHistoryReport() {
                 <tr>
                   <td colSpan={5} className="px-2 sm:px-4 py-8 sm:py-12 text-center text-muted-foreground">
                     <Search className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-1 sm:mb-2 opacity-50" />
-                    <p className="text-xs sm:text-sm">No checkout data for selected range</p>
+                    <p className="text-xs sm:text-sm">No requests for selected range</p>
                   </td>
                 </tr>
               )}

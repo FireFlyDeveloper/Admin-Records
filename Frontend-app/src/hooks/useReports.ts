@@ -10,9 +10,9 @@ export function useInventoryMovementReport(filters?: ReportFilters) {
   })
 }
 
-export function useCheckoutHistoryReport(filters?: ReportFilters) {
+export function useRequestsReport(filters?: ReportFilters) {
   return useQuery({
-    queryKey: ['report-checkout-history', filters],
+    queryKey: ['report-requests', filters],
     queryFn: () => reportsApi.getCheckoutHistory(filters).then((res) => res.data),
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,

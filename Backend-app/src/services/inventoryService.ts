@@ -31,6 +31,7 @@ export async function listItems(filters: {
   const conditions: string[] = ['i.deleted_at IS NULL'];
   const values: any[] = [];
   let idx = 1;
+  let joinClause = '';
 
   if (filters.type) {
     conditions.push(`i.item_type = $${idx++}`);
@@ -41,8 +42,18 @@ export async function listItems(filters: {
     values.push(filters.category);
   }
   if (filters.status) {
-    conditions.push(`i.status = $${idx++}`);
-    values.push(filters.status);
+    // "missing" / "present" / "transporting" / "inactive" / "maintenance" live in
+    // item_presence_state.presence_status, NOT items.status. Route those through
+    // the presence join so the dashboard modal matches the KPI count.
+    const presenceStatuses = ['present', 'missing', 'transporting', 'inactive', 'maintenance'];
+    if (presenceStatuses.includes(filters.status)) {
+      joinClause += ` JOIN item_presence_state ips_status ON ips_status.item_id = i.id`;
+      conditions.push(`ips_status.presence_status = $${idx++}`);
+      values.push(filters.status);
+    } else {
+      conditions.push(`i.status = $${idx++}`);
+      values.push(filters.status);
+    }
   }
   if (filters.search) {
     conditions.push(`(i.name ILIKE $${idx} OR i.description ILIKE $${idx} OR i.sku ILIKE $${idx} OR i.item_model ILIKE $${idx})`);
@@ -50,7 +61,6 @@ export async function listItems(filters: {
     idx++;
   }
 
-  let joinClause = '';
   if (filters.room) {
     joinClause += ` JOIN item_presence_state ips ON ips.item_id = i.id`;
     conditions.push(`ips.current_room_id = $${idx++}`);

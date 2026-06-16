@@ -142,9 +142,7 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
           COUNT(*) FILTER (WHERE il.expires_at IS NULL OR il.expires_at >= CURRENT_DATE + INTERVAL '30 days') as safe_items
         FROM item_lots il
         JOIN items i ON i.id = il.item_id
-        WHERE i.item_type = 'quantifiable'
-          AND i.deleted_at IS NULL
-          AND il.quantity_on_hand > 0
+        WHERE i.deleted_at IS NULL
       ),
       quantifiable_stats AS (
         SELECT COUNT(*) as quantifiable_total FROM items WHERE item_type = 'quantifiable' AND deleted_at IS NULL

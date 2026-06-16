@@ -1,16 +1,30 @@
 import { useQuery } from '@tanstack/react-query'
 import { dashboardApi } from '@/api/dashboard'
+import { useUIStore } from '@/stores/uiStore'
 
 export function useDashboardStats() {
+  const addToast = useUIStore((state) => state.addToast)
   return useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       try {
         const result = await dashboardApi.getStats()
         return result.data
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error)
-        // Return default values on error to match DashboardStats type
+      } catch (error: any) {
+        // Surface real API errors so a silent 0 is never confused with a
+        // genuine "no data" state. The KPI tiles fall back to 0s on render,
+        // which previously masked 401/403/500 responses.
+        const status = error?.response?.status
+        const message =
+          error?.response?.data?.error ||
+          error?.message ||
+          'Failed to load dashboard stats'
+        addToast({
+          message: status ? `Dashboard stats (${status}): ${message}` : message,
+          type: 'error',
+        })
+        console.error('useDashboardStats failed:', error)
+        // Return default values to keep the UI rendered (graceful)
         return {
           totalItems: 0,
           totalDocuments: 0,
@@ -24,7 +38,7 @@ export function useDashboardStats() {
             expiringSoon: 0,
             expiringMonth: 0,
             safe: 0,
-          }
+          },
         }
       }
     },

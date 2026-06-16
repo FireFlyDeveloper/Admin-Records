@@ -320,7 +320,7 @@ const quickAddItem = useCallback(
               <BarcodeScanner
                 onScan={handleScan}
                 isLoading={scanCode.isPending}
-                placeholder="Scan or enter barcode/QR..."
+                label="Scan barcode or QR"
               />
               <Input
                 placeholder="Search quantifiable items..."

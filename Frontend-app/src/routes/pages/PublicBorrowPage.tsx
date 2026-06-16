@@ -19,7 +19,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { BarcodeScanner } from '@/components/inventory/BarcodeScanner'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryApi } from '@/api/inventory'
 import { useUIStore } from '@/stores/uiStore'
 import { ItemLot, Item } from '@/types/inventory'
@@ -398,11 +399,13 @@ type Step = 'browse' | 'info' | 'review' | 'submitted'
 
 export function PublicBorrowPage() {
   const addToast = useUIStore((state) => state.addToast)
+  const queryClient = useQueryClient()
 
   const [step, setStep] = useState<Step>('browse')
   const [itemSearch, setItemSearch] = useState('')
   const [cart, setCart] = useState<CartItem[]>([])
   const [mobileCartOpen, setMobileCartOpen] = useState(false)
+  const [scanPending, setScanPending] = useState(false)
   const [studentInfo, setStudentInfo] = useState<StudentInfo>({
     srcode: '',
     email: '',
@@ -420,7 +423,7 @@ export function PublicBorrowPage() {
     staleTime: 60 * 1000,
   })
 
-const addToCart = useCallback(
+  const addToCart = useCallback(
     (item: Item, lots: ItemLot[], qty: number) => {
       const originalLotsById = new Map(lots.map((lot) => [lot.id, lot]))
       const inCartByLot = new Map(cart.map((cartItem) => [cartItem.lot.id, cartItem.quantity]))
@@ -440,10 +443,10 @@ const addToCart = useCallback(
       // Use intelligent lot selection (FIFO by default - expiring soonest first)
       // against remaining per-lot availability, not raw lot stock.
       const selections = selectMostAppropriateLots(qty, available)
-      
+
       // Calculate how much we actually added
       const addedQuantity = selections.reduce((sum, sel) => sum + sel.quantity, 0)
-      
+
       if (addedQuantity < qty) {
         addToast({ message: `Only ${addedQuantity} of ${qty} available for ${item.name}`, type: 'warning' })
       } else if (addedQuantity > 0) {
@@ -469,6 +472,68 @@ const addToCart = useCallback(
       })
     },
     [addToast, cart]
+  )
+
+  // Barcode/QR scan handler — public flow has no auth, so we resolve the
+  // code against the already-loaded public items + their lots. Match order
+  // mirrors the backend `scanCode()`: lot_code → sku → name (prefix).
+  const handleScan = useCallback(
+    async (code: string) => {
+      const trimmed = code.trim()
+      if (!trimmed) return
+
+      setScanPending(true)
+      try {
+        // If we don't have items loaded yet, fetch a wide list to search.
+        const baseItems = items && items.length > 0
+          ? items
+          : (await inventoryApi.getPublicItems({}).then((r) => r.data.items))
+
+        // Try SKU exact match first
+        let match = baseItems.find(
+          (it) => it.sku && it.sku.toLowerCase() === trimmed.toLowerCase()
+        )
+        // Then name prefix (case-insensitive)
+        if (!match) {
+          match = baseItems.find(
+            (it) => it.name.toLowerCase().startsWith(trimmed.toLowerCase())
+          )
+        }
+        // Then exact name (case-insensitive)
+        if (!match) {
+          match = baseItems.find(
+            (it) => it.name.toLowerCase() === trimmed.toLowerCase()
+          )
+        }
+
+        if (!match) {
+          addToast({ message: `No item found for "${trimmed}"`, type: 'warning' })
+          return
+        }
+
+        // Fetch lots for the matched item and add 1 to the cart
+        const lotsResponse = await queryClient.fetchQuery({
+          queryKey: ['public-lots', match.id],
+          queryFn: () => inventoryApi.getPublicLots(match!.id).then((r) => r.data.lots),
+          staleTime: 60 * 1000,
+        })
+
+        if (!lotsResponse || lotsResponse.length === 0) {
+          addToast({ message: `${match.name} has no available lots`, type: 'warning' })
+          return
+        }
+
+        addToCart(match, lotsResponse, 1)
+      } catch (err: any) {
+        addToast({
+          message: err?.response?.data?.error || err?.message || 'Scan failed',
+          type: 'error',
+        })
+      } finally {
+        setScanPending(false)
+      }
+    },
+    [items, addToast, addToCart, queryClient]
   )
 
   const removeFromCart = useCallback((lotId: string) => {
@@ -526,7 +591,14 @@ const addToCart = useCallback(
                   <CardTitle className="text-sm sm:text-base">Available Items</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 px-3 sm:px-6 space-y-3">
-                                    <Input
+                                    <BarcodeScanner
+                    onScan={handleScan}
+                    isLoading={scanPending}
+                    label="Scan barcode or QR"
+                    className="h-10 px-3 flex items-center gap-2 shrink-0 w-full sm:w-auto"
+                  />
+
+                  <Input
                     placeholder="Search items..."
                     value={itemSearch}
                     onChange={(e) => setItemSearch(e.target.value)}

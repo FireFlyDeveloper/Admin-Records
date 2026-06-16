@@ -1,7 +1,7 @@
 # Admin-Records Makefile
 # Convenience targets. Most things run automatically via the post-push git hook.
 
-.PHONY: help deploy deploy-fg logs status smoke stop clean install-hooks
+.PHONY: help deploy deploy-fg logs status smoke stop clean install-hooks push install-bin
 
 COMPOSE := docker compose -f docker-compose.yml
 
@@ -39,6 +39,15 @@ stop:           ## Stop all admin-records containers (data preserved).
 clean:          ## Stop + remove containers + images (DB volumes preserved).
 	$(COMPOSE) down --rmi local
 
-install-hooks:  ## Re-install the post-push auto-deploy hook.
-	@chmod +x .git/hooks/post-push
-	@echo "✔ post-push hook installed"
+install-hooks:  ## Symlink scripts/git-push to /usr/local/bin so plain `git push` deploys.
+	@if [ -w /usr/local/bin ]; then \
+	  ln -sf "$(PWD)/scripts/git-push" /usr/local/bin/git-push; \
+	  echo "✔ /usr/local/bin/git-push → $(PWD)/scripts/git-push"; \
+	else \
+	  echo "✖ /usr/local/bin not writable — run with sudo or install manually:"; \
+	  echo "    sudo ln -sf $(PWD)/scripts/git-push /usr/local/bin/git-push"; \
+	  exit 1; \
+	fi
+
+push:           ## Push to origin AND auto-deploy (use this instead of `git push`).
+	./scripts/git-push origin $(BRANCH)

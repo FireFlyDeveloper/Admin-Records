@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# scripts/git-push
+# ─────────────────────────────────────────────────────────────────────────────
+# Vercel/Render-style auto-deploy wrapper.
+#
+# This is a drop-in replacement for `git push` that:
+#   1. Runs the real `git push` with whatever args you pass
+#   2. If the push succeeded, runs scripts/deploy.sh
+#   3. If the push failed, exits with the push's error code (no deploy)
+#
+# Usage:
+#   scripts/git-push origin main           # exactly like git push
+#   scripts/git-push                       # uses git's defaults
+#   SKIP_AUTO_DEPLOY=1 scripts/git-push    # push without deploying
+#   make push                              # same thing, more memorable
+#
+# To make it the default `git push` for this repo, symlink it into your PATH:
+#   ln -sf "$(pwd)/scripts/git-push" /usr/local/bin/git-push
+# (After that, plain `git push` will trigger a deploy when called from anywhere
+# in this repo's working tree — but only if the working dir is this repo.
+# Outside it, the symlink is harmless because git's own push command takes
+# over when the wrapper is not present.)
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+
+if [ -z "$REPO_ROOT" ]; then
+  echo "✖ not inside a git repo" >&2
+  exit 128
+fi
+
+# ── Run the real git push ───────────────────────────────────────────────────
+echo "▶ git push $*"
+git push "$@"
+PUSH_EXIT=$?
+
+if [ $PUSH_EXIT -ne 0 ]; then
+  echo "✖ git push failed (exit $PUSH_EXIT), skipping deploy"
+  exit $PUSH_EXIT
+fi
+
+echo ""
+echo "✔ git push succeeded (exit 0)"
+
+# ── Bypass opt-out ─────────────────────────────────────────────────────────
+if [ "${SKIP_AUTO_DEPLOY:-}" = "1" ]; then
+  echo "⏭  SKIP_AUTO_DEPLOY=1, skipping deploy"
+  exit 0
+fi
+
+# ── Trigger the deploy ─────────────────────────────────────────────────────
+DEPLOY_SCRIPT="$REPO_ROOT/scripts/deploy.sh"
+if [ ! -x "$DEPLOY_SCRIPT" ]; then
+  echo "✖ deploy script not found or not executable: $DEPLOY_SCRIPT" >&2
+  exit 1
+fi
+
+echo ""
+echo "┌──────────────────────────────────────────────────────────────────────┐"
+echo "│  🚀 auto-deploy triggered                                           │"
+echo "└──────────────────────────────────────────────────────────────────────┘"
+echo ""
+
+"$DEPLOY_SCRIPT"

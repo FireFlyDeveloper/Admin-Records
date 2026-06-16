@@ -958,10 +958,15 @@ export async function scanCode(code: string): Promise<{
   item?: Item;
   lot?: ItemLot;
 }> {
-  // Try lot code first
+  const trimmed = (code || '').trim();
+  if (!trimmed) {
+    throw new ValidationError('code is required');
+  }
+
+  // Try lot code first (most specific)
   const lotResult = await query(
     `SELECT * FROM item_lots WHERE lot_code = $1`,
-    [code]
+    [trimmed]
   );
   if (lotResult.rows.length > 0) {
     const lot: ItemLot = lotResult.rows[0];
@@ -969,25 +974,27 @@ export async function scanCode(code: string): Promise<{
     return { type: 'lot', item, lot };
   }
 
-  // Try SKU
+  // Try exact SKU
   const skuResult = await query(
     `SELECT * FROM items WHERE sku = $1 AND deleted_at IS NULL`,
-    [code]
+    [trimmed]
   );
   if (skuResult.rows.length > 0) {
     return { type: 'item', item: skuResult.rows[0] };
   }
 
-  // Try item name or id
-  const itemResult = await query(
-    `SELECT * FROM items WHERE (name ILIKE $1 OR id = $1) AND deleted_at IS NULL`,
-    [code]
+  // Try item name (ILIKE) — match as a prefix so partial / typed values
+  // hit the right row. No UUID comparison here: passing a UUID text to
+  // `id = $1` (uuid column) raises `operator does not exist: uuid = text`.
+  const nameResult = await query(
+    `SELECT * FROM items WHERE name ILIKE $1 AND deleted_at IS NULL LIMIT 1`,
+    [`${trimmed}%`]
   );
-  if (itemResult.rows.length > 0) {
-    return { type: 'item', item: itemResult.rows[0] };
+  if (nameResult.rows.length > 0) {
+    return { type: 'item', item: nameResult.rows[0] };
   }
 
-  throw new NotFoundError('No item or lot found for scanned code');
+  throw new NotFoundError(`No item or lot found for scanned code "${trimmed}"`);
 }
 
 // --- Audit logging helper ---

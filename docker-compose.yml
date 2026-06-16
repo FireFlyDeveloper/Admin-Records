@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: admin_records
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin123
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_INITDB_ARGS: "--auth-host=trust --auth-local=trust"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./Backend-app/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -19,6 +21,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - admin-office-net
 
   redis:
     image: redis:7-alpine
@@ -29,6 +33,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - admin-office-net
 
   backend:
     build: ./Backend-app
@@ -41,20 +47,27 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env, for example postgresql://casaos:<password>@host.docker.internal:5432/admin_records}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       REDIS_URL: redis://redis:6379
       MQTT_URL: mqtt://host.docker.internal:1883
-      JWT_SECRET: change-me-in-production
-      JWT_REFRESH_SECRET: change-me-too
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-too}
+      OFFICE_DOC_SERVER_URL: http://onlyoffice:80
+      OFFICE_JWT_SECRET: ${OFFICE_JWT_SECRET:-office-secret-change-me}
       PORT: "3000"
       WS_PORT: "3001"
       UPLOAD_DIR: /app/uploads
       FILE_STORAGE_PATH: /app/uploads/storage
+      ALLOWED_ORIGINS: http://localhost:8180,http://localhost:3000
+      FRONTEND_URL: http://localhost:8180
+      APP_URL: http://localhost:8180
     volumes:
       - backend_uploads:/app/uploads
     ports:
       - "3000:3000"
       - "3001:3001"
+    networks:
+      - admin-office-net
 
   frontend:
     build: ./Frontend-app
@@ -64,7 +77,31 @@ services:
       - backend
     ports:
       - "8180:80"
+    networks:
+      - admin-office-net
+
+  onlyoffice:
+    image: onlyoffice/documentserver:8.2
+    container_name: admin-records-onlyoffice
+    restart: unless-stopped
+    environment:
+      - JWT_ENABLED=true
+      - JWT_SECRET=${OFFICE_JWT_SECRET}
+      - JWT_HEADER=Authorization
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+    ports:
+      - "8080:80"
+    networks:
+      - admin-office-net
 
 volumes:
   postgres_data:
   backend_uploads:
+  onlyoffice_data:
+  onlyoffice_logs:
+
+networks:
+  admin-office-net:
+    driver: bridge

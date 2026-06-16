@@ -7,7 +7,7 @@ import {
   UnregisteredTagPayload,
 } from '@/types/ble'
 
-const WS_URL = 'wss://ws.adminrecords.xyz'
+const WS_URL = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? 'wss://' + window.location.host + '/ws' : 'ws://' + window.location.host + '/ws')
 
 interface Alert {
   id: string

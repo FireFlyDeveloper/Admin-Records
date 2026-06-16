@@ -90,7 +90,6 @@ export function TrackingDashboardPage() {
   const presentCount = presence?.filter((p) => p.status === 'present').length || 0
   const transportingCount = presence?.filter((p) => p.status === 'transporting').length || 0
   const missingCount = presence?.filter((p) => p.status === 'missing').length || 0
-  const offlineDevices = devices?.filter((d) => d.status === 'offline').length || 0
 
   const filteredPresence = selectedRoomId
     ? presence?.filter((p) => p.room_id === selectedRoomId)
@@ -234,7 +233,7 @@ export function TrackingDashboardPage() {
       ) : (
         <div className="space-y-3 lg:space-y-6">
           {/* ── Stats bar ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <div className="rounded-lg border bg-card p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
               <div className="h-9 sm:h-10 w-9 sm:w-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                 <Package className="h-4 sm:h-5 w-4 sm:w-5 text-green-600" />
@@ -260,15 +259,6 @@ export function TrackingDashboardPage() {
               <div className="min-w-0">
                 <p className="text-xl sm:text-2xl font-bold">{missingCount}</p>
                 <p className="text-xs sm:text-sm text-muted-foreground">Missing</p>
-              </div>
-            </div>
-            <div className="rounded-lg border bg-card p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
-              <div className="h-9 sm:h-10 w-9 sm:w-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-                <Radio className="h-4 sm:h-5 w-4 sm:w-5 text-orange-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">{offlineDevices}</p>
-                <p className="text-xs sm:text-sm text-muted-foreground">Offline</p>
               </div>
             </div>
           </div>

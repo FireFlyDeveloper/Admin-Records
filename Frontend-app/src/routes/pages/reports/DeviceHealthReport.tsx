@@ -61,7 +61,7 @@ export function DeviceHealthReport() {
             <div className="flex items-center gap-2 sm:ml-auto">
               <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={!data || data.length === 0} className="h-9 sm:h-10 text-xs px-2 sm:px-3">
                 <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                Excel
+                Download Report (.xlsx)
               </Button>
             </div>
           </div>

@@ -111,13 +111,21 @@ export async function getAuditLogs(req: AuthRequest, res: Response, next: NextFu
       values.push(ai as string);
     }
     if (action) {
-      // If user searches for 'request', also include 'checkout' (conversion mapping)
-      if (action === 'request') {
-        conditions.push(`(action = $${idx++} OR action = 'checkout')`);
-        values.push('request');
-      } else {
+      const actionStr = action as string;
+      // 'request' is a UI label that maps to the stored 'checkout' action
+      // (see getCheckoutLog line 39 where the unified CTE hardcodes
+      // action = 'checkout' for the checkout_transactions source).
+      if (actionStr === 'request') {
+        conditions.push(`(action = 'request' OR action = 'checkout')`);
+      } else if (actionStr.includes('_')) {
+        // Already a full action name like 'create_item' — exact match
         conditions.push(`action = $${idx++}`);
-        values.push(action as string);
+        values.push(actionStr);
+      } else {
+        // Short label like 'create' — match any action that starts with
+        // it, so 'create' hits 'create_item', 'create_folder', etc.
+        conditions.push(`action LIKE $${idx++}`);
+        values.push(`${actionStr}%`);
       }
     }
     addDateRangeFilter(conditions, values, 'created_at', df as string | undefined, dt as string | undefined);

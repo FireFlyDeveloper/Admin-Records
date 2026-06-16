@@ -5,11 +5,22 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { useAuditLogs } from '@/hooks/useAudit'
+import { useAuditLogs, useAuditSummary } from '@/hooks/useAudit'
 import { exportToExcel } from '@/lib/export'
 import { FileDown, Search, RotateCcw } from 'lucide-react'
 
-const actions = ['create', 'update', 'delete', 'request', 'return', 'upload', 'download']
+// Fallback labels used when the summary endpoint is loading or returns
+// nothing. The actual list of actions is fetched from
+// /audit-logs/summary?groupBy=action and overrides these once loaded.
+const FALLBACK_ACTIONS = [
+  'create',
+  'update',
+  'delete',
+  'request',
+  'return',
+  'upload',
+  'download',
+]
 
 export function AuditLogPage() {
   const [action, setAction] = useState('')
@@ -17,6 +28,15 @@ export function AuditLogPage() {
   const [endDate, setEndDate] = useState('')
   const [page, setPage] = useState(1)
   const limit = 25
+
+  // Fetch the dynamic list of distinct action values present in the DB.
+  // If the call fails, we fall back to FALLBACK_ACTIONS so the dropdown
+  // still has something selectable.
+  const { data: summary } = useAuditSummary('action')
+  const dynamicActions =
+    summary && summary.length > 0
+      ? summary.map((s) => s.action).filter(Boolean)
+      : FALLBACK_ACTIONS
 
   const filters = {
     ...(action ? { action } : {}),
@@ -76,7 +96,7 @@ export function AuditLogPage() {
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Action</label>
               <Select value={action} onChange={(e) => { setAction(e.target.value); setPage(1) }}>
                 <option value="">All</option>
-                {actions.map((a) => (
+                {dynamicActions.map((a) => (
                   <option key={a} value={a}>{a}</option>
                 ))}
               </Select>

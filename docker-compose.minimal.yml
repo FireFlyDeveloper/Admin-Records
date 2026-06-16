@@ -189,3 +189,14 @@ services:
       - "8080:8080"
     networks:
       - admin-network
+
+networks:
+  admin-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:

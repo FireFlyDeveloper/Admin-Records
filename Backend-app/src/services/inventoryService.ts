@@ -312,9 +312,13 @@ export async function listLotsByItem(itemId: string): Promise<ItemLot[]> {
 }
 
 export async function listLotsByExpiration(status: string): Promise<ItemLot[]> {
+  // NOTE: do NOT filter on `i.item_type = 'quantifiable'`. Lots can be attached
+  // to trackable items too (e.g. microscope consumables), and the dashboard
+  // KPI counts them. Keeping this query consistent with the dashboard's
+  // expiration_stats CTE is important — otherwise a KPI shows N, but the
+  // modal for that status shows zero rows.
   const conditions: string[] = [
     `i.deleted_at IS NULL`,
-    `i.item_type = 'quantifiable'`,
     `il.quantity_on_hand > 0`,
   ];
 

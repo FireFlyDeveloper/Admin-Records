@@ -143,6 +143,7 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
         FROM item_lots il
         JOIN items i ON i.id = il.item_id
         WHERE i.deleted_at IS NULL
+          AND il.quantity_on_hand > 0
       ),
       quantifiable_stats AS (
         SELECT COUNT(*) as quantifiable_total FROM items WHERE item_type = 'quantifiable' AND deleted_at IS NULL

@@ -35,6 +35,7 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
   const scannerRef = useRef<Html5QrcodeInstance | null>(null);
   const isMountedRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const Html5QrcodeCtorRef = useRef<any>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -63,6 +64,7 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
     try {
       const mod = await import('html5-qrcode');
       Html5Qrcode = mod.Html5Qrcode;
+      Html5QrcodeCtorRef.current = Html5Qrcode;
     } catch (err: any) {
       setErrorMsg('Failed to load scanner library: ' + (err?.message || String(err)));
       setPhase('error');
@@ -111,14 +113,25 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
 
     if (!isMountedRef.current) return;
     setCameras(devices);
-    setSelectedCameraId(devices[0]?.id ?? null);
+    // Pick the best default camera:
+    //   - Mobile: prefer the back camera (labeled "back", "rear", or "environment")
+    //   - Desktop: prefer non-front (no "front", "facetime", "user" in label)
+    //   - Fallback: devices[0]
+    const findBack = (devs: typeof devices) => {
+      const back = devs.find((d) => /back|rear|environment/i.test(d.label) && !/front|user|facetime/i.test(d.label));
+      if (back) return back.id;
+      const nonFront = devs.find((d) => !/front|user|facetime/i.test(d.label));
+      return nonFront?.id ?? devs[0].id;
+    };
+    setSelectedCameraId(findBack(devices));
     setPhase('starting');
 
     const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.777777 };
     try {
       scannerRef.current = instance;
+      const cameraToStart = findBack(devices);
       await instance.start(
-        devices[0].id,
+        cameraToStart,
         config,
         (decodedText: string) => {
           if (!isMountedRef.current) return;
@@ -218,16 +231,56 @@ export function CameraBarcodeScanner({ onScan, onClose, open, onOpenChange }: Ca
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Camera picker (only when 2+ cameras) */}
-          {cameras.length > 1 && phase === 'scanning' && (
+          {/* Camera picker — visible as soon as we know the camera list, so user can switch before scanning starts */}
+          {cameras.length > 1 && (phase === 'scanning' || phase === 'starting') && (
             <div className="flex items-center gap-2 text-xs">
               <label htmlFor="camera-select" className="text-muted-foreground">Camera:</label>
               <select
                 id="camera-select"
                 value={selectedCameraId ?? ''}
                 onChange={(e) => {
-                  setSelectedCameraId(e.target.value);
-                  void stopScanner().then(() => startScanning());
+                  const newId = e.target.value;
+                  setSelectedCameraId(newId);
+                  // Re-start the scanner with the chosen camera id
+                  void (async () => {
+                    if (!isMountedRef.current) return;
+                    await stopScanner();
+                    if (!isMountedRef.current) return;
+                    const Html5QrcodeCtor = Html5QrcodeCtorRef.current;
+                    if (!Html5QrcodeCtor) {
+                      setErrorMsg('Scanner library not loaded. Reopen the dialog.');
+                      setPhase('error');
+                      return;
+                    }
+                    setPhase('starting');
+                    const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.777777 };
+                    try {
+                      const fresh = new Html5QrcodeCtor(containerIdRef.current, false);
+                      scannerRef.current = fresh;
+                      await fresh.start(
+                        newId,
+                        config,
+                        (decodedText: string) => {
+                          if (!isMountedRef.current) return;
+                          onScan(decodedText);
+                          handleClose();
+                        },
+                        () => undefined
+                      );
+                      if (isMountedRef.current) setPhase('scanning');
+                    } catch (err: any) {
+                      const name = err?.name || '';
+                      const messages: Record<string, string> = {
+                        NotAllowedError: 'Camera permission denied. Allow camera access and try again.',
+                        NotFoundError: 'Camera not found. Use manual entry below.',
+                        NotReadableError: 'Camera is in use by another application. Close it and try again.',
+                        OverconstrainedError: 'Selected camera does not meet requirements. Try a different camera.',
+                      };
+                      setErrorMsg(messages[name] || (err?.message ? `Camera error: ${err.message}` : 'Failed to start camera.'));
+                      setPhase('error');
+                      await stopScanner();
+                    }
+                  })();
                 }}
                 className="flex-1 rounded border border-input bg-background px-2 py-1 text-xs"
               >

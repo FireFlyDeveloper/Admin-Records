@@ -1,7 +1,10 @@
 # docker-compose.prod.yml — production stack for HVLanyn
-# Only the services needed to serve https://adminrecords.xyz/
-# No monitoring stack (avoids pulling prometheus/grafana/loki/cadvisor)
+# Services needed to serve https://adminrecords.xyz/ in full:
+#   postgres, redis, emqx (MQTT broker for BLE), onlyoffice (doc editor),
+#   backend, frontend
+# Skips: monitoring (prometheus/grafana/loki/cadvisor), theia (browser IDE)
 # Created 2026-06-16 to work around Windows credential vault corruption
+# (all Docker Hub pulls are blocked; images are tarballed from local sandbox)
 services:
   postgres:
     image: postgres:15-alpine
@@ -40,6 +43,36 @@ services:
     networks:
       - admin-network
 
+  emqx:
+    image: emqx/emqx:5.8.0
+    container_name: admin-records-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: admin123
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "18083:18083"
+    networks:
+      - admin-network
+
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: admin-records-onlyoffice
+    restart: unless-stopped
+    environment:
+      # JWT must match JWT_SECRET in backend so OnlyOffice can call back
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
+      JWT_ENABLED: "true"
+    ports:
+      - "8081:80"
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+    networks:
+      - admin-network
+
   backend:
     image: admin-records-backend:latest
     container_name: admin-records-backend
@@ -49,15 +82,24 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      emqx:
+        condition: service_started
+      onlyoffice:
+        condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://admin:admin123@postgres:5432/admin_records
+      - DATABASE_URL=postgresql://admin:***@postgres:5432/admin_records
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET}
-      - PORT=3000
+      - JWT_SECRET=${JWT_...n      - PORT=3000
       - WS_PORT=3001
+      - MQTT_URL=mqtt://emqx:1883
+      - MQTT_BLE_TOPIC=rtls/readings
+      - MQTT_USERNAME=
+      - MQTT_PASSWORD=
+      - ONLYOFFICE_URL=http://onlyoffice:80
+      - ONLYOFFICE_JWT_SECRET=${JWT_SECRET:-change-me-in-prod}
     volumes:
       - ./Backend-app/uploads:/app/uploads
       - ./Backend-app/logs:/app/logs
@@ -82,6 +124,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  onlyoffice_data:
+  onlyoffice_logs:
 
 networks:
   admin-network:

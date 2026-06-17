@@ -90,16 +90,18 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://admin:***@postgres:5432/admin_records
+      - DATABASE_URL=postgresql://admin:admin123@postgres:5432/admin_records
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_...n      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=3000
       - WS_PORT=3001
       - MQTT_URL=mqtt://emqx:1883
       - MQTT_BLE_TOPIC=rtls/readings
       - MQTT_USERNAME=
       - MQTT_PASSWORD=
       - ONLYOFFICE_URL=http://onlyoffice:80
-      - ONLYOFFICE_JWT_SECRET=${JWT_SECRET:-change-me-in-prod}
+      - ONLYOFFICE_JWT_ENABLED=true
+      - ONLYOFFICE_JWT_SECRET=${JWT_SECRET}
     volumes:
       - ./Backend-app/uploads:/app/uploads
       - ./Backend-app/logs:/app/logs

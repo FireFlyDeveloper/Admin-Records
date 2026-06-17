@@ -225,23 +225,10 @@ export function InventoryListPage() {
             </Button>
           )}
           
-          {/* Desktop scanner button */}
-          <div className="hidden sm:block">
-            <Button 
-              size="sm" 
-              variant="outline"
-              onClick={() => setShowScanner(true)}
-              className="flex items-center gap-1"
-            >
-              <QrCode className="h-4 w-4" />
-              <span>Scan</span>
-            </Button>
-          </div>
-          
-          {/* Mobile scanner button - only show on mobile */}
+          {/* Mobile scanner button - only show on mobile (hidden on desktop >=640px) */}
           <div className="block sm:hidden">
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               variant="outline"
               onClick={() => setShowScanner(true)}
               className="flex items-center gap-1"

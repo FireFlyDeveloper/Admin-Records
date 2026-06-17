@@ -62,9 +62,12 @@ services:
     container_name: admin-records-onlyoffice
     restart: unless-stopped
     environment:
-      # JWT must match JWT_SECRET in backend so OnlyOffice can call back
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
+      # JWT secret must match the backend's ONLYOFFICE_JWT_SECRET
+      # Shared secret so the backend can sign requests OnlyOffice accepts
+      JWT_SECRET: admin-records-shared-jwt-secret-2026
       JWT_ENABLED: "true"
+      JWT_HEADER: "Authorization"
+      JWT_IN_BODY: "false"
     ports:
       - "8081:80"
     volumes:
@@ -101,7 +104,7 @@ services:
       - MQTT_PASSWORD=
       - ONLYOFFICE_URL=http://onlyoffice:80
       - ONLYOFFICE_JWT_ENABLED=true
-      - ONLYOFFICE_JWT_SECRET=${JWT_SECRET}
+      - ONLYOFFICE_JWT_SECRET=admin-records-shared-jwt-secret-2026
     volumes:
       - ./Backend-app/uploads:/app/uploads
       - ./Backend-app/logs:/app/logs

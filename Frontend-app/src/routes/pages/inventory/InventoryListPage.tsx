@@ -48,6 +48,25 @@ export function InventoryListPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [showCart, setShowCart] = useState(false)
 
+  // Mutual exclusion: the Add Item modal and the scanner are never open at the
+  // same time. A keyboard-wedge barcode scanner typing into a focused input
+  // inside the Add Item modal would otherwise auto-fill the form and trigger
+  // a POST /items on Enter — which is the source of the 500 the user saw.
+  const openForm = useCallback(() => {
+    setShowScanner(false)
+    setShowForm(true)
+  }, [])
+  const openScanner = useCallback(() => {
+    setShowForm(false)
+    setShowScanner(true)
+  }, [])
+  const closeForm = useCallback((open: boolean) => {
+    if (!open) setShowForm(false)
+  }, [])
+  const closeScanner = useCallback((open: boolean) => {
+    if (!open) setShowScanner(false)
+  }, [])
+
   // Update URL when filters change
   useEffect(() => {
     const params = new URLSearchParams()
@@ -230,7 +249,7 @@ export function InventoryListPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setShowScanner(true)}
+              onClick={openScanner}
               className="flex items-center gap-1"
             >
               <QrCode className="h-4 w-4" />
@@ -238,9 +257,8 @@ export function InventoryListPage() {
             </Button>
           </div>
           {isAdminOrStaff && (
-            <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
+            <Button size="sm" onClick={openForm}>
+              <Plus className="h-4 w-4 mr-2" /> Add Item
             </Button>
           )}
         </div>
@@ -263,7 +281,7 @@ export function InventoryListPage() {
             <Button
               size="icon"
               variant="outline"
-              onClick={() => setShowScanner(true)}
+              onClick={openScanner}
               title="Scan barcode"
               className="h-10 w-10"
             >
@@ -330,14 +348,14 @@ export function InventoryListPage() {
 
       <ItemForm
         open={showForm}
-        onOpenChange={setShowForm}
+        onOpenChange={closeForm}
         onSubmit={handleCreate}
         isLoading={createItem.isPending}
       />
 
       <CameraBarcodeScanner
         open={showScanner}
-        onOpenChange={setShowScanner}
+        onOpenChange={closeScanner}
         onScan={handleScan}
       />
 

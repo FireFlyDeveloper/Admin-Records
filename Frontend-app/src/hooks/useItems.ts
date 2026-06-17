@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryApi } from '@/api/inventory'
 import { useUIStore } from '@/stores/uiStore'
-import { CreateItemInput, UpdateItemInput } from '@/types/inventory'
+import { CreateItemInput, UpdateItemInput, Item } from '@/types/inventory'
 
 export function useItems(filters?: { type?: string; category?: string; status?: string; search?: string; room?: string; expiration?: string }) {
   return useQuery({
@@ -63,12 +63,41 @@ export function useDeleteItem() {
 
   return useMutation({
     mutationFn: (id: string) => inventoryApi.deleteItem(id),
+    // Optimistic update: remove the item from every cached `['items', ...]`
+    // list immediately so the UI updates without waiting for the round trip.
+    // Then invalidate to refetch and confirm the server state.
+    onMutate: async (id: string) => {
+      // Cancel any in-flight refetches so they don't clobber the optimistic update
+      await queryClient.cancelQueries({ queryKey: ['items'] })
+
+      // Snapshot all matching `['items', ...]` caches so we can roll back on error
+      const previousSnapshots = queryClient.getQueriesData<Item[]>({ queryKey: ['items'] })
+
+      // Remove the item from each cached list
+      queryClient.setQueriesData<Item[]>({ queryKey: ['items'] }, (old) =>
+        Array.isArray(old) ? old.filter((it) => it.id !== id) : old
+      )
+
+      // Also clear the single-item cache so the detail page refetches fresh
+      queryClient.removeQueries({ queryKey: ['item', id] })
+
+      return { previousSnapshots }
+    },
+    onError: (err: any, _id, context) => {
+      // Roll back optimistic update on failure
+      if (context?.previousSnapshots) {
+        for (const [key, data] of context.previousSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
+      addToast({ message: err?.response?.data?.error || 'Failed to delete item', type: 'error' })
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['items'] })
       addToast({ message: 'Item deleted', type: 'success' })
     },
-    onError: (err: any) => {
-      addToast({ message: err?.response?.data?.error || 'Failed to delete item', type: 'error' })
+    onSettled: () => {
+      // Always refetch to make sure the cache matches server truth
+      queryClient.invalidateQueries({ queryKey: ['items'] })
     },
   })
 }

@@ -43,6 +43,7 @@ import {
   ReturnLine,
 } from '../services/inventoryService';
 import { ValidationError, ForbiddenError, NotFoundError } from '../utils/errors';
+import { getPublicBorrowerId } from '../routes/public';
 import {
   notifyCheckoutCreated,
   notifyCheckoutApproved,
@@ -630,10 +631,15 @@ export async function postApproveCheckout(req: AuthRequest, res: Response, next:
       entity_id: checkoutId,
     });
 
-    // Notify the requester that their checkout was approved
-    // Detect public borrower from notes field (contains JSON with student info)
+    // Notify the requester that their checkout was approved.
+    // For PUBLIC borrows (checked_out_by === publicBorrowerId), the student's email is
+    // only in the notes JSON — use that. For AUTHENTICATED checkouts, always use
+    // the user's account email via notifyCheckoutApproved so the approval email goes
+    // to the correct logged-in user rather than any email stored in notes.
     const notes = transaction.notes as string | undefined;
-    if (notes && notes.trim().startsWith('{')) {
+    const publicBorrowerId = await getPublicBorrowerId();
+    if (notes && notes.trim().startsWith('{') && transaction.checked_out_by === publicBorrowerId) {
+      // Truly a public borrow — email is only available in notes JSON
       try {
         const studentInfo = JSON.parse(notes);
         if (studentInfo.email && studentInfo.name) {
@@ -651,6 +657,7 @@ export async function postApproveCheckout(req: AuthRequest, res: Response, next:
           .catch((err) => console.error('[EMAIL] Failed to notify checkout approved:', err));
       }
     } else {
+      // Authenticated user — use their account email from the users table
       notifyCheckoutApproved(transaction.checked_out_by, checkoutId)
         .catch((err) => console.error('[EMAIL] Failed to notify checkout approved:', err));
     }

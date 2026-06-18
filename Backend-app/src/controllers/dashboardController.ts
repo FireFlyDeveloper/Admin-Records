@@ -301,6 +301,7 @@ export async function getRoomStatus(req: AuthRequest, res: Response, next: NextF
         WHERE presence_status = 'missing'
         GROUP BY current_room_id
       ) m ON m.current_room_id = r.id
+      WHERE r.deleted_at IS NULL
       ORDER BY r.name
     `);
 

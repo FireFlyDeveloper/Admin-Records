@@ -36,7 +36,7 @@ COMMENT ON TABLE roles IS 'Platform roles controlling access and checkout privil
 -- Users are the core identity for all actors in the system.
 CREATE TABLE IF NOT EXISTS users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         TEXT NOT NULL UNIQUE,
+  email         TEXT NOT NULL,
   display_name  TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   is_active     BOOLEAN NOT NULL DEFAULT true,
@@ -47,6 +47,11 @@ CREATE TABLE IF NOT EXISTS users (
 
 COMMENT ON TABLE users IS 'Platform users with soft-delete support.';
 
+-- Partial unique index: email must be unique among active (non-deleted) users only.
+-- This allows soft-deleted users to be re-created with the same email without
+-- violating the unique constraint at the DB level.
+CREATE UNIQUE INDEX idx_users_email_active ON users (email) WHERE deleted_at IS NULL;
+-- Regular index for general email lookups (including soft-deleted users).
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at) WHERE deleted_at IS NOT NULL;
 

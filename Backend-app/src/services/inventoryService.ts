@@ -303,7 +303,7 @@ export async function listLotsByItem(itemId: string): Promise<ItemLot[]> {
   const result = await query(
     `SELECT il.*, i.name as item_name 
      FROM item_lots il
-     JOIN items i ON i.id = il.item_id
+     JOIN items i ON i.id = il.item_id AND i.deleted_at IS NULL
      WHERE il.item_id = $1 
      ORDER BY il.created_at DESC`,
     [itemId]
@@ -352,7 +352,7 @@ export async function getLotById(id: string): Promise<ItemLot> {
   const result = await query(
     `SELECT il.*, i.name as item_name 
      FROM item_lots il
-     JOIN items i ON i.id = il.item_id
+     JOIN items i ON i.id = il.item_id AND i.deleted_at IS NULL
      WHERE il.id = $1`,
     [id]
   );

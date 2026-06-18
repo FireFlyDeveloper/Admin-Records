@@ -19,7 +19,7 @@
       "@/*": ["src/*"]
     },
     "ignoreDeprecations": "6.0",
-    "types": ["node"]
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*", "scripts"],
   "exclude": ["node_modules", "dist", "tests"]

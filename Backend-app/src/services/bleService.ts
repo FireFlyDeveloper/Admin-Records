@@ -783,7 +783,7 @@ export async function processBleScan(payload: BleScanPayload): Promise<void> {
 // ======================= Background Jobs =======================
 
 export async function runMissingDetectionJob(): Promise<void> {
-  const thresholdMs = config.bleMissingThresholdMinutes * 60 * 1000;
+  const thresholdMs = config.bleMissingThresholdSeconds * 1000;
   const cutoff = new Date(Date.now() - thresholdMs);
 
   const result = await query<{ item_id: string }>(

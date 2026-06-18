@@ -13,10 +13,10 @@ const router = Router();
 
 // ── System user for public borrows ──────────────────────────────────
 
-const PUBLIC_BORROWER_EMAIL = 'public-borrower@system';
-const PUBLIC_BORROWER_NAME = 'Public Borrower';
+export const PUBLIC_BORROWER_EMAIL = 'public-borrower@system';
+export const PUBLIC_BORROWER_NAME = 'Public Borrower';
 
-async function getPublicBorrowerId(): Promise<string> {
+export async function getPublicBorrowerId(): Promise<string> {
   // Use INSERT ... ON CONFLICT to handle concurrent requests safely
   const result = await query(
     `INSERT INTO users (email, display_name, password_hash, is_active)

@@ -39,11 +39,23 @@ export function ItemForm({ open, onOpenChange, onSubmit, item, isLoading }: Item
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim()) return
+    const cleanName = name.trim()
+    if (!cleanName) {
+      return
+    }
+    // Mirror the backend's input guards (Backend-app/src/controllers/inventoryController.ts)
+    // so the user gets immediate feedback before the round trip. The backend
+    // re-validates as the source of truth — this is a UX guard only.
+    if (cleanName.length > 200) {
+      return
+    }
+    if (/^(.)\1{9,}$/.test(cleanName)) {
+      return
+    }
 
     const data = isEdit
-      ? { name: name.trim(), sku: sku.trim() || null, item_model: itemModel.trim() || null, category: category.trim() || undefined, description: description.trim() || undefined, status }
-      : { item_type: itemType, name: name.trim(), sku: sku.trim() || null, item_model: itemModel.trim() || null, category: category.trim() || undefined, description: description.trim() || undefined, status }
+      ? { name: cleanName, sku: sku.trim() || null, item_model: itemModel.trim() || null, category: category.trim() || undefined, description: description.trim() || undefined, status }
+      : { item_type: itemType, name: cleanName, sku: sku.trim() || null, item_model: itemModel.trim() || null, category: category.trim() || undefined, description: description.trim() || undefined, status }
 
     onSubmit(data)
   }
@@ -70,7 +82,14 @@ export function ItemForm({ open, onOpenChange, onSubmit, item, isLoading }: Item
           )}
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Item name" required />
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Item name"
+              maxLength={200}
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="sku">SKU</Label>
@@ -100,7 +119,15 @@ export function ItemForm({ open, onOpenChange, onSubmit, item, isLoading }: Item
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !name.trim()}>
+            <Button
+              type="submit"
+              disabled={
+                isLoading ||
+                !name.trim() ||
+                name.trim().length > 200 ||
+                /^(.)\1{9,}$/.test(name.trim())
+              }
+            >
               {isLoading ? 'Saving...' : isEdit ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>

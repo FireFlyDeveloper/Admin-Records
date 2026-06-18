@@ -43,6 +43,7 @@ import {
   ReturnLine,
 } from '../services/inventoryService';
 import { ValidationError, ForbiddenError, NotFoundError } from '../utils/errors';
+import { validateAndNormalizeCreateItem, validateAndNormalizeUpdateItem } from '../utils/itemValidation';
 import {
   notifyCheckoutCreated,
   notifyCheckoutApproved,
@@ -211,22 +212,10 @@ export async function postItem(req: AuthRequest, res: Response, next: NextFuncti
       throw new ForbiddenError('Only admin or staff can create items');
     }
 
-    const { item_type, name, sku, item_model, category, description, status } = req.body;
-    if (!item_type || !name) {
-      throw new ValidationError('item_type and name are required');
-    }
-    if (!['trackable', 'quantifiable'].includes(item_type)) {
-      throw new ValidationError('item_type must be trackable or quantifiable');
-    }
+    const normalised = validateAndNormalizeCreateItem(req.body);
 
     const item = await createItem({
-      item_type,
-      name,
-      sku,
-      item_model,
-      category,
-      description,
-      status,
+      ...normalised,
       created_by: ctx.userId,
     });
 
@@ -235,7 +224,7 @@ export async function postItem(req: AuthRequest, res: Response, next: NextFuncti
       action: 'create_item',
       entity_type: 'item',
       entity_id: item.id,
-      metadata: { item_type, name },
+      metadata: { item_type: normalised.item_type, name: normalised.name },
     });
 
     res.status(201).json({ item });
@@ -286,15 +275,9 @@ export async function patchItem(req: AuthRequest, res: Response, next: NextFunct
       throw new ForbiddenError('Only admin or staff can update items');
     }
 
-    const { name, sku, item_model, category, description, status } = req.body;
-    const item = await updateItem(req.params.id as string, {
-      name,
-      sku,
-      item_model,
-      category,
-      description,
-      status,
-    });
+    const normalised = validateAndNormalizeUpdateItem(req.body);
+
+    const item = await updateItem(req.params.id as string, normalised);
 
     await logInventoryActivity({
       actor_id: ctx.userId,

@@ -595,7 +595,7 @@ export function PublicBorrowPage() {
                     onScan={handleScan}
                     isLoading={scanPending}
                     label="Scan barcode or QR"
-                    className="h-10 px-3 flex items-center gap-2 shrink-0 w-full sm:w-auto"
+                    className="block sm:hidden h-10 px-3 flex items-center gap-2 shrink-0 w-full sm:w-auto"
                   />
 
                   <Input

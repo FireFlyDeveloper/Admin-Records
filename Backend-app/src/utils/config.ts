@@ -12,7 +12,7 @@ export const config = {
   fileStorageBackend: process.env.FILE_STORAGE_BACKEND || 'local',
   fileStoragePath: process.env.FILE_STORAGE_PATH || './storage',
   bleConflictWindowSeconds: parseInt(process.env.BLE_CONFLICT_WINDOW_SECONDS || '5', 10),
-  bleMissingThresholdMinutes: parseInt(process.env.BLE_MISSING_THRESHOLD_MINUTES || '10', 10),
+  bleMissingThresholdSeconds: parseInt(process.env.BLE_MISSING_THRESHOLD_SECONDS || '30', 10),
   bleDeviceOfflineThresholdMinutes: parseInt(process.env.BLE_DEVICE_OFFLINE_THRESHOLD_MINUTES || '2', 10),
   bleHeartbeatIntervalSeconds: parseInt(process.env.BLE_HEARTBEAT_INTERVAL_SECONDS || '30', 10),
   missingJobIntervalSeconds: parseInt(process.env.MISSING_JOB_INTERVAL_SECONDS || '60', 10),

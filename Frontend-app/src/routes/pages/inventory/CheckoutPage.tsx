@@ -317,11 +317,14 @@ const quickAddItem = useCallback(
               <CardTitle className="text-base">Available Items</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-2 md:space-y-3">
-              <BarcodeScanner
-                onScan={handleScan}
-                isLoading={scanCode.isPending}
-                label="Scan barcode or QR"
-              />
+              {/* Mobile-only scanner trigger (hidden on desktop >=768px where a phone camera is rarely usable) */}
+              <div className="block md:hidden">
+                <BarcodeScanner
+                  onScan={handleScan}
+                  isLoading={scanCode.isPending}
+                  label="Scan barcode or QR"
+                />
+              </div>
               <Input
                 placeholder="Search quantifiable items..."
                 value={itemSearch}

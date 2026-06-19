@@ -84,7 +84,7 @@ export async function updateRoom(id: string, data: { name?: string; building?: s
   values.push(id);
 
   const result = await query<Room>(
-    `UPDATE rooms SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+    `UPDATE rooms SET ${sets.join(', ')} WHERE id = $${idx} AND deleted_at IS NULL RETURNING *`,
     values
   );
   if (result.rows.length === 0) throw new NotFoundError('Room not found');
@@ -783,7 +783,7 @@ export async function processBleScan(payload: BleScanPayload): Promise<void> {
 // ======================= Background Jobs =======================
 
 export async function runMissingDetectionJob(): Promise<void> {
-  const thresholdMs = config.bleMissingThresholdMinutes * 60 * 1000;
+  const thresholdMs = config.bleMissingThresholdSeconds * 1000;
   const cutoff = new Date(Date.now() - thresholdMs);
 
   const result = await query<{ item_id: string }>(

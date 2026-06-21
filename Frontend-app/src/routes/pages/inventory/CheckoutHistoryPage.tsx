@@ -230,7 +230,7 @@ function renderBorrowerInfo(txn: any) {
     const isReturned = txn.status === 'returned'
     const returnedAt = isReturned ? txn.created_at : (txn.returned_at || parsedNotes?.returned_at)
     const borrowedItems = txn.borrowed_item_names || parsedNotes?.item_name || 'N/A'
-    const email = parsedNotes?.email || txn.user_email || 'N/A'
+    const email = txn.requester_email || parsedNotes?.email || txn.user_email || 'N/A'
     const statusLabel = getStatusConfig(parsedNotes?.status || txn.status).label
     const fieldClass = 'min-w-0 break-words'
     const valueClass = 'break-words [overflow-wrap:anywhere]'

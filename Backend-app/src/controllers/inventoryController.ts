@@ -533,12 +533,22 @@ export async function getCheckouts(req: AuthRequest, res: Response, next: NextFu
     
     // Apply role-based response formatting
     const formattedTransactions = transactions.map(txn => {
+      const responseTxn: any = { ...txn };
+      try {
+        const notesJson = responseTxn.notes ? JSON.parse(responseTxn.notes) : null;
+        if (txn.checked_out_by === publicBorrowerId && notesJson?.email) {
+          responseTxn.requester_email = notesJson.email;
+        }
+      } catch {
+        // Ignore invalid notes JSON
+      }
+
       if (ctx.isAdmin || ctx.isStaff) {
         // Admins/staff see full notes
-        return txn;
+        return responseTxn;
       } else {
         // Students see sanitized notes - only include non-sensitive fields
-        const sanitizedTxn = { ...txn };
+        const sanitizedTxn = { ...responseTxn };
         if (sanitizedTxn.notes) {
           try {
             const notesJson = JSON.parse(sanitizedTxn.notes);
@@ -594,6 +604,16 @@ export async function getCheckout(req: AuthRequest, res: Response, next: NextFun
       } catch {
         // If notes is not valid JSON, keep as-is (might be plain text)
       }
+    }
+
+    try {
+      const publicBorrowerId = await getPublicBorrowerId();
+      const notesJson = result.transaction.notes ? JSON.parse(result.transaction.notes) : null;
+      if (result.transaction.checked_out_by === publicBorrowerId && notesJson?.email) {
+        (result.transaction as any).requester_email = notesJson.email;
+      }
+    } catch {
+      // Ignore invalid notes JSON
     }
 
     res.json(result);

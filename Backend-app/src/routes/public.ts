@@ -21,7 +21,8 @@ export async function getPublicBorrowerId(): Promise<string> {
   const result = await query(
     `INSERT INTO users (email, display_name, password_hash, is_active)
      VALUES ($1, $2, '', true)
-     ON CONFLICT (email) DO UPDATE SET updated_at = now()
+     ON CONFLICT (email) WHERE deleted_at IS NULL
+     DO UPDATE SET updated_at = now()
      RETURNING id`,
     [PUBLIC_BORROWER_EMAIL, PUBLIC_BORROWER_NAME]
   );

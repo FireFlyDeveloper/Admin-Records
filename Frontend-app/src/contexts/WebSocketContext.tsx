@@ -7,7 +7,11 @@ import {
   UnregisteredTagPayload,
 } from '@/types/ble'
 
-const WS_URL = import.meta.env.VITE_WS_URL || (window.location.protocol === 'https:' ? 'wss://' + window.location.host + '/ws' : 'ws://' + window.location.host + '/ws')
+const WS_URL =
+  import.meta.env.VITE_WS_URL ||
+  (window.location.protocol === 'https:'
+    ? 'wss://' + window.location.host + '/ws/'
+    : 'ws://' + window.location.host + '/ws/')
 
 interface Alert {
   id: string
@@ -46,6 +50,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptsRef = useRef(0)
+  const shouldReconnectRef = useRef(true)
   const maxReconnectDelay = 30000
   const accessToken = useAuthStore((state) => state.accessToken)
 
@@ -64,6 +69,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
     if (!accessToken) return
 
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+
+    shouldReconnectRef.current = true
     setConnecting(true)
     const url = `${WS_URL}?token=${encodeURIComponent(accessToken)}`
     const ws = new WebSocket(url)
@@ -133,6 +144,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       setConnecting(false)
       wsRef.current = null
 
+      if (!shouldReconnectRef.current || !accessToken) return
+
       const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, maxReconnectDelay)
       reconnectAttemptsRef.current += 1
       reconnectTimeoutRef.current = setTimeout(connect, delay)
@@ -153,6 +166,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     connect()
     return () => {
+      shouldReconnectRef.current = false
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
       wsRef.current?.close()
       wsRef.current = null

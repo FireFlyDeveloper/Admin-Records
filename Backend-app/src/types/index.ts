@@ -204,7 +204,7 @@ export interface CheckoutTransactionItem {
   id: string;
   transaction_id: string;
   item_id: string;
-  lot_id: string;
+  lot_id: string | null;
   quantity_out: number;
   quantity_returned: number;
   created_at: Date;

@@ -482,6 +482,7 @@ export async function postCheckout(req: AuthRequest, res: Response, next: NextFu
     // Validate each line
     const checkoutLines: CheckoutLine[] = lines.map((l: any) => ({
       lot_id: l.lot_id,
+      item_id: l.item_id,
       quantity: Number(l.quantity),
     }));
 
@@ -494,7 +495,7 @@ export async function postCheckout(req: AuthRequest, res: Response, next: NextFu
       action: ctx.isAdmin || ctx.isStaff ? 'request' : 'request',
       entity_type: 'lot',
       entity_id: result.transaction.id,
-      metadata: { items: result.items.map((i) => ({ lot_id: i.lot_id, qty: i.quantity_out })), status: result.transaction.status },
+      metadata: { items: result.items.map((i) => ({ item_id: i.item_id, lot_id: i.lot_id, qty: i.quantity_out })), status: result.transaction.status },
     });
 
     // Notify admin/staff if this is a pending approval checkout request

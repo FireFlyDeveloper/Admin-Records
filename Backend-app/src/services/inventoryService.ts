@@ -508,7 +508,8 @@ export async function deleteLotById(id: string): Promise<ItemLot> {
 }
 
 export interface CheckoutLine {
-  lot_id: string;
+  lot_id?: string;
+  item_id?: string;
   quantity: number;
 }
 
@@ -524,15 +525,24 @@ export async function createCheckout(
 
   const status = isAdminOrStaff ? 'open' : 'pending_approval';
   const normalizedLines = Array.from(
-    lines.reduce((byLot, line) => {
+    lines.reduce((byLine, line) => {
       const quantity = Number(line.quantity);
       if (!Number.isFinite(quantity) || quantity <= 0) {
         throw new ValidationError('Quantity must be greater than 0');
       }
-      byLot.set(line.lot_id, (byLot.get(line.lot_id) ?? 0) + quantity);
-      return byLot;
-    }, new Map<string, number>())
-  ).map(([lot_id, quantity]) => ({ lot_id, quantity }));
+      const key = line.lot_id ? `lot:${line.lot_id}` : line.item_id ? `item:${line.item_id}` : null;
+      if (!key) {
+        throw new ValidationError('Each checkout line must include lot_id or item_id');
+      }
+      const current = byLine.get(key);
+      byLine.set(key, {
+        lot_id: line.lot_id,
+        item_id: line.item_id,
+        quantity: (current?.quantity ?? 0) + quantity,
+      });
+      return byLine;
+    }, new Map<string, CheckoutLine>()).values()
+  );
 
   return withTransaction(async (client) => {
     // Create transaction
@@ -547,56 +557,104 @@ export async function createCheckout(
     const items: CheckoutTransactionItem[] = [];
 
     for (const line of normalizedLines) {
-      // Lock lot row
-      const lotResult = await client.query(
-        `SELECT * FROM item_lots WHERE id = $1 FOR UPDATE`,
-        [line.lot_id]
-      );
-      if (lotResult.rows.length === 0) {
-        throw new NotFoundError(`Lot ${line.lot_id} not found`);
-      }
-      const lot: ItemLot = lotResult.rows[0];
+      if (line.lot_id) {
+        // Quantifiable item flow: lock the selected lot and validate stock.
+        const lotResult = await client.query(
+          `SELECT * FROM item_lots WHERE id = $1 FOR UPDATE`,
+          [line.lot_id]
+        );
+        if (lotResult.rows.length === 0) {
+          throw new NotFoundError(`Lot ${line.lot_id} not found`);
+        }
+        const lot: ItemLot = lotResult.rows[0];
 
-      // Verify item is quantifiable and active
+        const itemResult = await client.query(
+          `SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL`,
+          [lot.item_id]
+        );
+        if (itemResult.rows.length === 0) {
+          throw new NotFoundError(`Item for lot ${line.lot_id} not found`);
+        }
+        const item: Item = itemResult.rows[0];
+        if (item.item_type !== 'quantifiable') {
+          throw new ValidationError('Lot checkout is only allowed for quantifiable items');
+        }
+        if (item.status !== 'active') {
+          throw new ValidationError(`Item ${item.name} is not active`);
+        }
+
+        if (lot.quantity_on_hand < line.quantity) {
+          throw new ValidationError(
+            `Insufficient stock for lot ${lot.lot_code}: available ${lot.quantity_on_hand}, requested ${line.quantity}`
+          );
+        }
+
+        if (status === 'open') {
+          await client.query(
+            `UPDATE item_lots
+             SET quantity_on_hand = quantity_on_hand - $1,
+                 quantity_out = quantity_out + $1
+             WHERE id = $2`,
+            [line.quantity, line.lot_id]
+          );
+        }
+
+        const ctiResult = await client.query(
+          `INSERT INTO checkout_transaction_items (transaction_id, item_id, lot_id, quantity_out)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [transaction.id, lot.item_id, lot.id, line.quantity]
+        );
+        items.push(ctiResult.rows[0]);
+        continue;
+      }
+
+      if (!line.item_id) {
+        throw new ValidationError('Each checkout line must include lot_id or item_id');
+      }
+
+      // Trackable item flow: one physical asset, no lot row.
       const itemResult = await client.query(
-        `SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL`,
-        [lot.item_id]
+        `SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [line.item_id]
       );
       if (itemResult.rows.length === 0) {
-        throw new NotFoundError(`Item for lot ${line.lot_id} not found`);
+        throw new NotFoundError(`Item ${line.item_id} not found`);
       }
       const item: Item = itemResult.rows[0];
-      if (item.item_type !== 'quantifiable') {
-        throw new ValidationError('Checkout is only allowed for quantifiable items');
+      if (item.item_type !== 'trackable') {
+        throw new ValidationError('Item checkout without a lot is only allowed for trackable items');
       }
       if (item.status !== 'active') {
         throw new ValidationError(`Item ${item.name} is not active`);
       }
-
-      // Stock validation (always validate, even for pending)
-      if (lot.quantity_on_hand < line.quantity) {
-        throw new ValidationError(
-          `Insufficient stock for lot ${lot.lot_code}: available ${lot.quantity_on_hand}, requested ${line.quantity}`
-        );
+      if (line.quantity !== 1) {
+        throw new ValidationError('Trackable items can only be requested one at a time');
       }
 
-      // Only deduct stock for admin/staff immediate checkouts
+      const presenceResult = await client.query(
+        `SELECT presence_status FROM item_presence_state WHERE item_id = $1 FOR UPDATE`,
+        [item.id]
+      );
+      const presenceStatus = presenceResult.rows[0]?.presence_status ?? 'unknown';
+      if (presenceStatus !== 'present') {
+        throw new ValidationError(`Trackable item ${item.name} is not currently available`);
+      }
+
       if (status === 'open') {
         await client.query(
-          `UPDATE item_lots
-           SET quantity_on_hand = quantity_on_hand - $1,
-               quantity_out = quantity_out + $1
-           WHERE id = $2`,
-          [line.quantity, line.lot_id]
+          `UPDATE item_presence_state
+           SET presence_status = 'transporting', updated_at = now()
+           WHERE item_id = $1`,
+          [item.id]
         );
       }
 
-      // Create checkout line
       const ctiResult = await client.query(
         `INSERT INTO checkout_transaction_items (transaction_id, item_id, lot_id, quantity_out)
-         VALUES ($1, $2, $3, $4)
+         VALUES ($1, $2, NULL, 1)
          RETURNING *`,
-        [transaction.id, lot.item_id, lot.id, line.quantity]
+        [transaction.id, item.id]
       );
       items.push(ctiResult.rows[0]);
     }
@@ -607,7 +665,7 @@ export async function createCheckout(
 
 export async function getCheckoutById(id: string): Promise<{
   transaction: CheckoutTransaction;
-  items: (CheckoutTransactionItem & { item_name: string; lot_code: string })[];
+  items: (CheckoutTransactionItem & { item_name: string; lot_code: string | null })[];
 }> {
   const txnResult = await query(
     `SELECT * FROM checkout_transactions WHERE id = $1`,
@@ -620,7 +678,7 @@ export async function getCheckoutById(id: string): Promise<{
     `SELECT cti.*, i.name as item_name, il.lot_code
      FROM checkout_transaction_items cti
      JOIN items i ON i.id = cti.item_id
-     JOIN item_lots il ON il.id = cti.lot_id
+     LEFT JOIN item_lots il ON il.id = cti.lot_id
      WHERE cti.transaction_id = $1`,
     [id]
   );
@@ -652,6 +710,24 @@ export async function approveCheckout(
       [checkoutId]
     );
     for (const cti of itemsResult.rows) {
+      if (!cti.lot_id) {
+        const presenceResult = await client.query(
+          `SELECT presence_status FROM item_presence_state WHERE item_id = $1 FOR UPDATE`,
+          [cti.item_id]
+        );
+        const presenceStatus = presenceResult.rows[0]?.presence_status ?? 'unknown';
+        if (presenceStatus !== 'present') {
+          throw new ConflictError('Cannot approve: trackable item is not currently available');
+        }
+        await client.query(
+          `UPDATE item_presence_state
+           SET presence_status = 'transporting', updated_at = now()
+           WHERE item_id = $1`,
+          [cti.item_id]
+        );
+        continue;
+      }
+
       const lotResult = await client.query(
         `SELECT * FROM item_lots WHERE id = $1 FOR UPDATE`,
         [cti.lot_id]
@@ -844,14 +920,24 @@ export async function createReturn(
         [line.quantity, line.checkout_item_id]
       );
 
-      // Restore lot stock
-      await client.query(
-        `UPDATE item_lots
-         SET quantity_on_hand = quantity_on_hand + $1,
-             quantity_out = quantity_out - $1
-         WHERE id = $2`,
-        [line.quantity, cti.lot_id]
-      );
+      if (cti.lot_id) {
+        // Restore quantifiable lot stock
+        await client.query(
+          `UPDATE item_lots
+           SET quantity_on_hand = quantity_on_hand + $1,
+               quantity_out = quantity_out - $1
+           WHERE id = $2`,
+          [line.quantity, cti.lot_id]
+        );
+      } else if (remaining === line.quantity) {
+        // A trackable checkout is a single physical asset. Mark it present when fully returned.
+        await client.query(
+          `UPDATE item_presence_state
+           SET presence_status = 'present', updated_at = now()
+           WHERE item_id = $1`,
+          [cti.item_id]
+        );
+      }
 
       // Create return item record
       const rtiResult = await client.query(
@@ -931,13 +1017,22 @@ export async function cancelCheckout(
         [checkoutId]
       );
       for (const cti of itemsResult.rows) {
-        await client.query(
-          `UPDATE item_lots
-           SET quantity_on_hand = quantity_on_hand + $1,
-               quantity_out = quantity_out - $1
-           WHERE id = $2`,
-          [cti.quantity_out, cti.lot_id]
-        );
+        if (cti.lot_id) {
+          await client.query(
+            `UPDATE item_lots
+             SET quantity_on_hand = quantity_on_hand + $1,
+                 quantity_out = quantity_out - $1
+             WHERE id = $2`,
+            [cti.quantity_out, cti.lot_id]
+          );
+        } else {
+          await client.query(
+            `UPDATE item_presence_state
+             SET presence_status = 'present', updated_at = now()
+             WHERE item_id = $1`,
+            [cti.item_id]
+          );
+        }
       }
     }
 

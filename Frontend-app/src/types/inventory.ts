@@ -63,7 +63,7 @@ export interface CheckoutTransactionItem {
   id: string
   transaction_id: string
   item_id: string
-  lot_id: string
+  lot_id: string | null
   quantity_out: number
   quantity_returned: number
   created_at: string
@@ -89,7 +89,8 @@ export interface ReturnTransactionItem {
 }
 
 export interface CheckoutLine {
-  lot_id: string
+  lot_id?: string
+  item_id?: string
   quantity: number
 }
 
@@ -105,7 +106,7 @@ export interface CheckoutResult {
 
 export interface CheckoutDetailResult {
   transaction: CheckoutTransaction
-  items: (CheckoutTransactionItem & { item_name: string; lot_code: string })[]
+  items: (CheckoutTransactionItem & { item_name: string; lot_code: string | null })[]
 }
 
 export interface ReturnResult {

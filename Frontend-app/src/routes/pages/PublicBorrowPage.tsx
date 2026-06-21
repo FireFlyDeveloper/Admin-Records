@@ -29,7 +29,9 @@ import { selectMostAppropriateLots } from '@/lib/lotSelection'
 // ── Sub-components ─────────────────────────────────────────────────
 
 interface CartItem {
-  lot: ItemLot
+  id: string
+  item: Item
+  lot?: ItemLot
   quantity: number
 }
 
@@ -37,10 +39,12 @@ function ItemRow({
   item,
   cart,
   onAddToCart,
+  onAddTrackableToCart,
 }: {
   item: Item
   cart: CartItem[]
   onAddToCart: (item: Item, lots: ItemLot[], qty: number) => void
+  onAddTrackableToCart: (item: Item) => void
 }) {
   const { data: lots, isLoading } = useQuery({
     queryKey: ['public-lots', item.id],
@@ -50,15 +54,17 @@ function ItemRow({
   })
 
   const [qty, setQty] = useState(1)
-  const availableLots = lots?.filter((l) => l.quantity_on_hand > 0) ?? []
-  const totalAvailable = availableLots.reduce((s, l) => s + l.quantity_on_hand, 0)
+  const isTrackable = item.item_type === 'trackable'
+  const availableLots = !isTrackable ? lots?.filter((l) => l.quantity_on_hand > 0) ?? [] : []
+  const totalAvailable = isTrackable ? (item.total_stocks ?? 0) : availableLots.reduce((s, l) => s + l.quantity_on_hand, 0)
 
   // Count how many of this item are already in cart
   const itemLotIds = new Set(lots?.map((l) => l.id) ?? [])
   const inCartQty = cart
-    .filter((c) => itemLotIds.has(c.lot.id))
+    .filter((c) => c.item.id === item.id || (c.lot && itemLotIds.has(c.lot.id)))
     .reduce((s, c) => s + c.quantity, 0)
   const remaining = totalAvailable - inCartQty
+  const maxQuantity = isTrackable ? 1 : Math.max(0, remaining)
 
   return (
     <div className="rounded-lg border p-3">
@@ -68,8 +74,9 @@ function ItemRow({
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{item.name}</p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+              <span className="font-medium capitalize">{item.item_type}</span>
               {item.total_stocks !== undefined && <span className="font-medium">Total: {item.total_stocks}</span>}
-              {isLoading ? (
+              {!isTrackable && isLoading ? (
                 <span>Loading stock...</span>
               ) : (
                 <span>Avail: <strong>{remaining}</strong></span>
@@ -81,18 +88,21 @@ function ItemRow({
           <Input
             type="number"
             min={1}
-            max={Math.max(0, remaining)}
+            max={maxQuantity}
             value={qty}
-            onChange={(e) => setQty(Math.max(1, Math.min(remaining, parseInt(e.target.value) || 1)))}
+            onChange={(e) => setQty(Math.max(1, Math.min(maxQuantity, parseInt(e.target.value) || 1)))}
             className="w-14 h-9 text-center text-sm"
-            disabled={remaining <= 0 || isLoading}
+            disabled={isTrackable || remaining <= 0 || isLoading}
           />
           <Button
             size="sm"
             className="h-9 w-9 p-0 shrink-0"
-            disabled={remaining <= 0 || isLoading || qty < 1}
+            disabled={remaining <= 0 || (!isTrackable && isLoading) || qty < 1}
             onClick={() => {
-              if (lots) {
+              if (isTrackable) {
+                onAddTrackableToCart(item)
+                setQty(1)
+              } else if (lots) {
                 onAddToCart(item, lots, qty)
                 setQty(1)
               }
@@ -185,7 +195,7 @@ function MobileCartDrawer({
   cart: CartItem[]
   open: boolean
   onToggle: () => void
-  onRemove: (lotId: string) => void
+  onRemove: (cartItemId: string) => void
   onProceed: () => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -245,12 +255,12 @@ function MobileCartDrawer({
             ) : (
               cart.map((c) => (
                 <div
-                  key={c.lot.id}
+                  key={c.id}
                   className="flex items-center gap-2 rounded-lg border p-2.5"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {c.lot.item_name || c.lot.lot_code}
+                      {c.item.name || c.lot?.item_name || c.lot?.lot_code}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Qty: {c.quantity}
@@ -258,7 +268,7 @@ function MobileCartDrawer({
                   </div>
                   <button
                     className="h-7 w-7 rounded-md flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors"
-                    onClick={() => onRemove(c.lot.id)}
+                    onClick={() => onRemove(c.id)}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -293,7 +303,7 @@ function DesktopCartSidebar({
   onProceed,
 }: {
   cart: CartItem[]
-  onRemove: (lotId: string) => void
+  onRemove: (cartItemId: string) => void
   onProceed: () => void
 }) {
   return (
@@ -314,12 +324,12 @@ function DesktopCartSidebar({
             <div className="space-y-2 max-h-[50vh] overflow-y-auto">
               {cart.map((c) => (
                 <div
-                  key={c.lot.id}
+                  key={c.id}
                   className="flex items-center gap-2 rounded-lg border p-2"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {c.lot.item_name || c.lot.lot_code}
+                      {c.item.name || c.lot?.item_name || c.lot?.lot_code}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Qty: {c.quantity}
@@ -329,7 +339,7 @@ function DesktopCartSidebar({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 text-destructive"
-                    onClick={() => onRemove(c.lot.id)}
+                    onClick={() => onRemove(c.id)}
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -413,7 +423,7 @@ export function PublicBorrowPage() {
     course: '',
   })
 
-  // Fetch quantifiable items via public endpoint
+  // Fetch active quantifiable and trackable items via public endpoint
   const { data: items, isLoading: itemsLoading } = useQuery({
     queryKey: ['public-items', itemSearch],
     queryFn: () =>
@@ -426,7 +436,11 @@ export function PublicBorrowPage() {
   const addToCart = useCallback(
     (item: Item, lots: ItemLot[], qty: number) => {
       const originalLotsById = new Map(lots.map((lot) => [lot.id, lot]))
-      const inCartByLot = new Map(cart.map((cartItem) => [cartItem.lot.id, cartItem.quantity]))
+      const inCartByLot = new Map(
+        cart
+          .filter((cartItem) => cartItem.lot)
+          .map((cartItem) => [cartItem.lot!.id, cartItem.quantity])
+      )
 
       const available = lots
         .map((lot) => ({
@@ -457,7 +471,7 @@ export function PublicBorrowPage() {
         const next = [...prev]
         for (const sel of selections) {
           const originalLot = originalLotsById.get(sel.lot.id) ?? sel.lot
-          const index = next.findIndex((c) => c.lot.id === sel.lot.id)
+          const index = next.findIndex((c) => c.id === originalLot.id)
           if (index >= 0) {
             next[index] = {
               ...next[index],
@@ -465,13 +479,37 @@ export function PublicBorrowPage() {
               quantity: Math.min(next[index].quantity + sel.quantity, originalLot.quantity_on_hand),
             }
           } else {
-            next.push({ lot: originalLot, quantity: Math.min(sel.quantity, originalLot.quantity_on_hand) })
+            next.push({
+              id: originalLot.id,
+              item,
+              lot: originalLot,
+              quantity: Math.min(sel.quantity, originalLot.quantity_on_hand),
+            })
           }
         }
         return next
       })
     },
     [addToast, cart]
+  )
+
+  const addTrackableToCart = useCallback(
+    (item: Item) => {
+      if ((item.total_stocks ?? 0) <= 0) {
+        addToast({ message: `${item.name} is not currently available`, type: 'warning' })
+        return
+      }
+
+      setCart((prev) => {
+        if (prev.some((cartItem) => cartItem.id === item.id)) {
+          addToast({ message: `${item.name} is already in your cart`, type: 'warning' })
+          return prev
+        }
+        addToast({ message: `Added ${item.name} to cart`, type: 'success' })
+        return [...prev, { id: item.id, item, quantity: 1 }]
+      })
+    },
+    [addToast]
   )
 
   // Barcode/QR scan handler — public flow has no auth, so we resolve the
@@ -511,7 +549,12 @@ export function PublicBorrowPage() {
           return
         }
 
-        // Fetch lots for the matched item and add 1 to the cart
+        if (match.item_type === 'trackable') {
+          addTrackableToCart(match)
+          return
+        }
+
+        // Fetch lots for the matched quantifiable item and add 1 to the cart
         const lotsResponse = await queryClient.fetchQuery({
           queryKey: ['public-lots', match.id],
           queryFn: () => inventoryApi.getPublicLots(match!.id).then((r) => r.data.lots),
@@ -533,11 +576,11 @@ export function PublicBorrowPage() {
         setScanPending(false)
       }
     },
-    [items, addToast, addToCart, queryClient]
+    [items, addToast, addToCart, addTrackableToCart, queryClient]
   )
 
-  const removeFromCart = useCallback((lotId: string) => {
-    setCart((prev) => prev.filter((c) => c.lot.id !== lotId))
+  const removeFromCart = useCallback((cartItemId: string) => {
+    setCart((prev) => prev.filter((c) => c.id !== cartItemId))
   }, [])
 
   
@@ -549,7 +592,11 @@ export function PublicBorrowPage() {
         email: studentInfo.email,
         name: studentInfo.name,
         course: studentInfo.course,
-        lines: cart.map((c) => ({ lot_id: c.lot.id, quantity: c.quantity })),
+        lines: cart.map((c) => (
+          c.lot?.id
+            ? { lot_id: c.lot.id, quantity: c.quantity }
+            : { item_id: c.item.id, quantity: c.quantity }
+        )),
       }),
     onSuccess: () => {
       setStep('submitted')
@@ -618,6 +665,7 @@ export function PublicBorrowPage() {
                           item={item}
                           cart={cart}
                           onAddToCart={addToCart}
+                          onAddTrackableToCart={addTrackableToCart}
                         />
                       ))}
                     </div>
@@ -830,11 +878,11 @@ export function PublicBorrowPage() {
             <CardContent className="px-3 sm:px-6 space-y-2">
               {cart.map((c) => (
                 <div
-                  key={c.lot.id}
+                  key={c.id}
                   className="flex items-center justify-between rounded-lg border p-2.5 sm:p-3"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{c.lot.item_name || c.lot.lot_code}</p>
+                    <p className="text-sm font-medium truncate">{c.item.name || c.lot?.item_name || c.lot?.lot_code}</p>
                     <p className="text-xs text-muted-foreground">
                       Qty: {c.quantity}
                     </p>

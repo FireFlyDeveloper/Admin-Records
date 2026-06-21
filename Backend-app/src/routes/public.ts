@@ -33,13 +33,12 @@ export async function getPublicBorrowerId(): Promise<string> {
 
 /**
  * GET /public/items
- * List quantifiable active items available for borrowing.
+ * List active quantifiable and trackable items available for borrowing.
  */
 router.get('/public/items', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { search } = req.query;
     const items = await listItems({
-      type: 'quantifiable',
       status: 'active',
       search: search as string | undefined,
     });
@@ -65,7 +64,7 @@ router.get('/public/items/:id/lots', async (req: Request, res: Response, next: N
 /**
  * POST /public/borrow
  * Public borrow request from a student (no login required).
- * Body: { srcode, email, name, course, lines: [{ lot_id, quantity }] }
+ * Body: { srcode, email, name, course, lines: [{ lot_id, quantity } | { item_id, quantity }] }
  *
  * Borrower info is stored in the notes field as JSON.
  * Transaction is created with status 'pending_approval'.
@@ -96,6 +95,11 @@ router.post('/public/borrow', async (req: Request, res: Response, next: NextFunc
         continue;
       }
 
+      if (l.item_id) {
+        checkoutLines.push({ item_id: l.item_id, quantity: qty });
+        continue;
+      }
+
       // Accept lot_tag or lot_code as alternative identifiers (e.g. from scanners)
       if (l.lot_tag || l.lot_code) {
         const code = l.lot_tag || l.lot_code;
@@ -107,7 +111,7 @@ router.post('/public/borrow', async (req: Request, res: Response, next: NextFunc
         continue;
       }
 
-      throw new ValidationError('Each line must include lot_id or lot_tag/lot_code');
+      throw new ValidationError('Each line must include lot_id, item_id, or lot_tag/lot_code');
     }
 
     // Store borrower info in notes as JSON so it's visible to staff reviewers

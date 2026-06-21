@@ -105,6 +105,11 @@ services:
       - ONLYOFFICE_URL=http://onlyoffice:80
       - ONLYOFFICE_JWT_ENABLED=true
       - ONLYOFFICE_JWT_SECRET=admin-records-shared-jwt-secret-2026
+      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USER=${MAIL_USER:-administrativerecordsystem@gmail.com}
+      - MAIL_PASS=${MAIL_PASS}
+      - MAIL_FROM=${MAIL_FROM:-administrativerecordsystem@gmail.com}
     volumes:
       - ./Backend-app/uploads:/app/uploads
       - ./Backend-app/logs:/app/logs

@@ -14,8 +14,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./Backend-app/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-    ports:
-      - "5432:5432"
+    # No host port mapping — port 5432 is held by the host's pgvector-db container.
+    # The backend reaches postgres by service name on admin-office-net.
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d admin_records"]
       interval: 10s
@@ -54,6 +56,11 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-too}
       OFFICE_DOC_SERVER_URL: http://onlyoffice:80
       OFFICE_JWT_SECRET: ${OFFICE_JWT_SECRET:-office-secret-change-me}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USER: ${MAIL_USER:-administrativerecordsystem@gmail.com}
+      MAIL_PASS: ${MAIL_PASS}
+      MAIL_FROM: ${MAIL_FROM:-administrativerecordsystem@gmail.com}
       PORT: "3000"
       WS_PORT: "3001"
       UPLOAD_DIR: /app/uploads

@@ -529,6 +529,7 @@ export async function getCheckouts(req: AuthRequest, res: Response, next: NextFu
       status: status as string | undefined,
       itemId: item_id as string | undefined,
     });
+    const publicBorrowerId = await getPublicBorrowerId();
     
     // Apply role-based response formatting
     const formattedTransactions = transactions.map(txn => {
@@ -541,12 +542,14 @@ export async function getCheckouts(req: AuthRequest, res: Response, next: NextFu
         if (sanitizedTxn.notes) {
           try {
             const notesJson = JSON.parse(sanitizedTxn.notes);
-            // Only keep fields students should see
+            const isPublicBorrow = txn.checked_out_by === publicBorrowerId;
+            // Only keep fields students should see; preserve requester email for public borrows
             const sanitizedNotes = {
               created_at: notesJson.created_at || null,
               returned_at: notesJson.returned_at || null,
               item_name: notesJson.item_name || null,
-              status: notesJson.status || null
+              status: notesJson.status || null,
+              ...(isPublicBorrow && notesJson.email ? { email: notesJson.email } : {}),
             };
             sanitizedTxn.notes = JSON.stringify(sanitizedNotes);
           } catch {
@@ -577,12 +580,15 @@ export async function getCheckout(req: AuthRequest, res: Response, next: NextFun
     if (!ctx.isAdmin && !ctx.isStaff && result.transaction.notes) {
       try {
         const notesJson = JSON.parse(result.transaction.notes);
-        // Only keep fields students should see
+        const publicBorrowerId = await getPublicBorrowerId();
+        const isPublicBorrow = result.transaction.checked_out_by === publicBorrowerId;
+        // Only keep fields students should see; preserve requester email for public borrows
         const sanitizedNotes = {
           created_at: notesJson.created_at || null,
           returned_at: notesJson.returned_at || null,
           item_name: notesJson.item_name || null,
-          status: notesJson.status || null
+          status: notesJson.status || null,
+          ...(isPublicBorrow && notesJson.email ? { email: notesJson.email } : {}),
         };
         result.transaction.notes = JSON.stringify(sanitizedNotes);
       } catch {

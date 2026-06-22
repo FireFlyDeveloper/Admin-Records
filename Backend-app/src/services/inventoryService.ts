@@ -716,13 +716,15 @@ export async function approveCheckout(
           [cti.item_id]
         );
         const presenceStatus = presenceResult.rows[0]?.presence_status ?? 'unknown';
-        if (presenceStatus !== 'present') {
-          throw new ConflictError('Cannot approve: trackable item is not currently available');
+        if (!['present', 'transporting'].includes(presenceStatus)) {
+          throw new ConflictError(`Cannot approve: trackable item is ${presenceStatus}`);
         }
         await client.query(
-          `UPDATE item_presence_state
-           SET presence_status = 'transporting', updated_at = now()
-           WHERE item_id = $1`,
+          `INSERT INTO item_presence_state (item_id, presence_status, updated_at)
+           VALUES ($1, 'transporting', now())
+           ON CONFLICT (item_id) DO UPDATE SET
+             presence_status = 'transporting',
+             updated_at = now()`,
           [cti.item_id]
         );
         continue;

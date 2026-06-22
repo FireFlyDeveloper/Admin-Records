@@ -215,20 +215,25 @@ export async function postItem(req: AuthRequest, res: Response, next: NextFuncti
 
     const normalised = validateAndNormalizeCreateItem(req.body);
 
-    const item = await createItem({
+    const result = await createItem({
       ...normalised,
       created_by: ctx.userId,
     });
+    const { item, restored } = result;
 
     await logInventoryActivity({
       actor_id: ctx.userId,
       action: 'create_item',
       entity_type: 'item',
       entity_id: item.id,
-      metadata: { item_type: normalised.item_type, name: normalised.name },
+      metadata: {
+        item_type: normalised.item_type,
+        name: normalised.name,
+        restored,
+      },
     });
 
-    res.status(201).json({ item });
+    res.status(restored ? 200 : 201).json({ item, restored });
   } catch (err) {
     next(err);
   }

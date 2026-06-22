@@ -218,23 +218,77 @@ export async function createItem(data: {
   description?: string;
   status?: 'active' | 'inactive' | 'maintenance';
   created_by: string;
-}): Promise<Item> {
-  const result = await query(
-    `INSERT INTO items (item_type, name, sku, item_model, category, description, status, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING *`,
-    [
-      data.item_type,
-      data.name,
-      data.sku || null,
-      data.item_model || null,
-      data.category || null,
-      data.description || null,
-      data.status || 'active',
-      data.created_by,
-    ]
-  );
-  return result.rows[0];
+}): Promise<{ item: Item; restored: boolean }> {
+  // Auto-restore: if a soft-deleted row exists for this SKU, undelete it
+  // and update it with the new fields. Avoids the unique-collision 500 and
+  // preserves history (lots, presence state, location history were already
+  // cascade-deleted with the item, but checkout/return history is FK-only
+  // and survives).
+  if (data.sku) {
+    const existing = await query(
+      `SELECT id, deleted_at FROM items WHERE sku = $1 ORDER BY created_at DESC LIMIT 1`,
+      [data.sku]
+    );
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      if (row.deleted_at === null) {
+        throw new ConflictError(
+          'Item with this SKU already exists and is active. ' +
+            'Edit the existing item or use a different SKU.'
+        );
+      }
+      const restored = await query(
+        `UPDATE items
+         SET deleted_at = NULL,
+             name = $1,
+             item_type = $2,
+             item_model = $3,
+             category = $4,
+             description = $5,
+             status = COALESCE($6, 'active'),
+             updated_at = now()
+         WHERE id = $7
+         RETURNING *`,
+        [
+          data.name,
+          data.item_type,
+          data.item_model || null,
+          data.category || null,
+          data.description || null,
+          data.status,
+          row.id,
+        ]
+      );
+      return { item: restored.rows[0], restored: true };
+    }
+  }
+
+  try {
+    const result = await query(
+      `INSERT INTO items (item_type, name, sku, item_model, category, description, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        data.item_type,
+        data.name,
+        data.sku || null,
+        data.item_model || null,
+        data.category || null,
+        data.description || null,
+        data.status || 'active',
+        data.created_by,
+      ]
+    );
+    return { item: result.rows[0], restored: false };
+  } catch (err: any) {
+    if (err.code === '23505') {
+      // Race: another request created the same SKU between our check and insert
+      throw new ConflictError(
+        'Item with this SKU was just created by another request. Please retry.'
+      );
+    }
+    throw err;
+  }
 }
 
 export async function updateItem(

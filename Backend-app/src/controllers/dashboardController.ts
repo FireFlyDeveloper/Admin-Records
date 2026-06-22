@@ -123,7 +123,11 @@ export async function getDashboardStats(req: AuthRequest, res: Response, next: N
         SELECT COUNT(*) as total_users FROM users WHERE deleted_at IS NULL
       ),
       missing_stats AS (
-        SELECT COUNT(*) as missing_items FROM item_presence_state WHERE presence_status = 'missing'
+        SELECT COUNT(*) as missing_items
+        FROM item_presence_state ips
+        JOIN items i ON i.id = ips.item_id
+        WHERE ips.presence_status = 'missing'
+          AND i.deleted_at IS NULL
       ),
       offline_stats AS (
         SELECT COUNT(*) as offline_devices FROM devices WHERE is_active = true AND offline_since IS NOT NULL
